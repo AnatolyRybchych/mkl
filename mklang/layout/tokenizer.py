@@ -85,6 +85,12 @@ class Tokenizer:
 
         cases: list[tuple[c.Expr, c.Construction]] = []
 
+        body.add_if(beg == end, c.Ret(c.Initializer(token_t, {
+            'type': token_type['TOK_EOF'],
+            'beg': beg,
+            'end': beg,
+        })))
+
         for tok, steps in unique_token_steps.items():
             path = token_path(root, tok)
 
@@ -92,16 +98,24 @@ class Tokenizer:
                 # TODO: handle multi-char tokens
                 continue
 
-            for step in steps:
-                ret = c.Initializer(token_t, {
-                    'type': token_type[self.tokens[tok].enum_name()],
-                    'beg': beg,
-                    'end': beg + 1,
-                })
+            ret = c.Initializer(token_t, {
+                'type': token_type[self.tokens[tok].enum_name()],
+                'beg': beg,
+                'end': beg + 1,
+            })
 
+            for step in steps:
                 cases.append((c.Literal(step, 'char'), c.Ret(ret)))
 
         body.add_switch(beg.deref(), cases)
+
+        body.add_comment('The get_token function is not ment to fail.')
+        body.add_comment('Return EOF with len != 0 for unknown token')
+        body.add_line(c.Ret(c.Initializer(token_t, {
+            'type': token_type['TOK_EOF'],
+            'beg': beg,
+            'end': beg + 1,
+        })))
 
     def generate(self, code: c.Codebase):
         token_h = code.add_new_file('output/include/token.h')

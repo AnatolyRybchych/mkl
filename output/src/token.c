@@ -1,5 +1,12 @@
 #include <token.h>
 struct Token get_token(const char *beg, const char *end) {
+    if (beg == end) {
+        return (struct Token){
+            .type = TOK_EOF,
+            .beg = beg,
+            .end = beg,
+        };
+    }
     switch (*beg) {
         case '{':
             return (struct Token){
@@ -32,4 +39,11 @@ struct Token get_token(const char *beg, const char *end) {
                 .end = beg + 1,
             };
     }
+    // The get_token function is not ment to fail.
+    // Return EOF with len != 0 for unknown token
+    return (struct Token){
+        .type = TOK_EOF,
+        .beg = beg,
+        .end = beg + 1,
+    };
 }

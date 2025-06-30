@@ -66,14 +66,14 @@ class Ast:
 
         def node_field_type(op: AstOp) -> c.Type:
             if op.type == 'token':
-                return ast_h.find_struct('Token').ptr()
+                return ast_h.find_type('Token').ptr()
             elif op.type == 'node':
                 return node_types[op.node.typename()]
             else:
                 raise Exception(f'Operation of type {op.type} is not supported')
 
         for node in self.nodes.values():
-            node_struct = ast_h.find_struct(node.typename())
+            node_struct = ast_h.find_type(node.typename())
             if node.op.type == 'seq':
                 for item in node.op.items:
                     if item.field:

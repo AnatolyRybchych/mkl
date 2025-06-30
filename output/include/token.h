@@ -2,7 +2,7 @@
 #define TOKENIZER_H
 
 typedef enum {
-    END_OF_FILE,
+    TOK_EOF,
     TOK_NAME,
     TOK_STRUCT,
     TOK_OPEN_CURLY,

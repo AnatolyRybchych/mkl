@@ -13,6 +13,7 @@
         <token name="CLOSE_PARENTHESIS">\)</token>
         <token name="SEMICOLON">;</token>
         <token name="SPACE">[ \n]+</token>
+        <token name="INCREMENT">\+\+</token>
     </tokenizer>
 
     <ast>

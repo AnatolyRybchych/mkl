@@ -10,7 +10,8 @@ typedef enum {
     TOK_OPEN_PARENTHESIS,
     TOK_CLOSE_PARENTHESIS,
     TOK_SEMICOLON,
-    TOK_SPACE
+    TOK_SPACE,
+    TOK_INCREMENT
 } TokenType;
 
 typedef struct Token Token;

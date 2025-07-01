@@ -1,10 +1,12 @@
 
 import mklang.syntax.tokenizer as syntax
 import mklang.layout.token as token_layout
+import mklang.utils.tree as tree
 
 import mkc as c
 import json
 import copy
+import sys
 
 import mklang.fsm as fsm
 
@@ -34,26 +36,6 @@ def token_path(node: fsm.Node, token: str) -> dict[int, dict]:
         return res
 
     return get_token_path(node, token, {})
-
-# returns None if there is a cycle
-def tree_depth(tree: dict) -> int | None:
-    class Loop(Exception):
-        pass
-
-    def get_depth(tree: dict, visisted: set) -> int | None:
-        res = 0
-        visisted.add(id(tree))
-        for k, v in tree.items():
-            if id(v) in visisted:
-                raise Loop
-            res = max(res, get_depth(v, visisted))
-        visisted.remove(id(tree))
-
-        return res
-    try:
-        return get_depth(tree, set())
-    except Loop:
-        return None
 
 def token_overlappings(token_steps: dict[str, set[int]], token: str) -> set[str]:
     target_steps: set[int] = token_steps[token]
@@ -91,25 +73,41 @@ class Tokenizer:
             'end': beg,
         })))
 
+        body.declare(cstring_t, 'tok_end', beg + 1)
+        tok_end = body['tok_end']
+
         for tok, steps in unique_token_steps.items():
             path = token_path(root, tok)
+            path_depth = tree.depth(path)
 
-            if tree_depth(path) != 0:
-                # TODO: handle multi-char tokens
-                continue
+            if path_depth == 1:
+                ret = c.Initializer(token_t, {
+                    'type': token_type[self.tokens[tok].enum_name()],
+                    'beg': beg,
+                    'end': tok_end,
+                })
 
-            ret = c.Initializer(token_t, {
-                'type': token_type[self.tokens[tok].enum_name()],
-                'beg': beg,
-                'end': beg + 1,
-            })
-
-            for step in steps:
-                cases.append((c.Literal(step, 'char'), c.Ret(ret)))
+                for step in steps:
+                    cases.append((c.Literal(step, 'char'), c.Ret(ret)))
 
         body.add_switch(beg.deref(), cases)
 
-        body.add_comment('The get_token function is not ment to fail.')
+        for tok, steps in unique_token_steps.items():
+            path = token_path(root, tok)
+            path_depth = tree.depth(path)
+            if path_depth is not None and path_depth > 1:
+                traces = tree.traces(path)
+                if len(traces) == 1 and not traces[0].is_cyclic():
+                    trace = traces[0]
+                    target_string =  str(bytes([k for k, _ in trace.iter()]), 'utf-8')
+                    body.add_comment('TODO: add this logic under the switch case')
+                    body.add_if(c.Fn('strncmp')(tok_end, target_string, end - tok_end) == 0, c.Ret(c.Initializer(token_t, {
+                        'type': token_type[self.tokens[tok].enum_name()],
+                        'beg': beg,
+                        'end': beg + 1,
+                    })))
+
+        body.add_comment('The get_token function is not meant to fail.')
         body.add_comment('Return EOF with len != 0 for unknown token')
         body.add_line(c.Ret(c.Initializer(token_t, {
             'type': token_type['TOK_EOF'],

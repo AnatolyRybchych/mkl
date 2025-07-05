@@ -397,3 +397,68 @@ def from_expr(pattern: str | bytes, data) -> Node:
         return seq(*res)
 
     return to_fsm(*parse(tokenize(pattern)))
+
+def filter_fsm(predicate: callable, node: Node) -> Node:
+    assert type(node) is Node
+
+    res = copy.deepcopy(node)
+
+    unresolved: set[Node] = set([res])
+    visited: set[Node] = set()
+
+    while len(unresolved) != 0:
+        cur = unresolved.pop()
+        if cur in visited:
+            continue
+
+        visited.add(cur)
+        to_delete: set = set()
+
+        for k in cur.next.keys():
+            cur.next[k] = set(filter(predicate, cur.next[k]))
+
+            for step in cur.next[k]:
+                unresolved.add(step)
+
+            if len(cur.next[k]) == 0:
+                to_delete.add(k)
+
+        for item in to_delete:
+            del cur.next[item]
+
+    return res
+
+def get_cycle_roots(node: Node) -> set[Node]:
+    res: set[Node] = set()
+    unresolved: list[Node] = [node]
+    visited: set[Node] = set()
+
+    while len(unresolved) != 0:
+        cur = unresolved.pop()
+        if cur in visited:
+            res.add(cur)
+            continue
+        visited.add(cur)
+
+        for k, steps in cur.next.items():
+            for step in steps:
+                unresolved.append(step)
+
+    return res
+
+def get_all_nodes(node: Node) -> set[Node]:
+    unresolved: list[Node] = [node]
+    visited: set[Node] = set()
+
+    while len(unresolved) != 0:
+        cur = unresolved.pop()
+        if cur in visited:
+            continue
+
+        visited.add(cur)
+
+        for k, steps in cur.next.items():
+            for step in steps:
+                unresolved.append(step)
+
+    return visited

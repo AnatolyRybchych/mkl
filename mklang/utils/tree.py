@@ -1,6 +1,8 @@
 
 from mklang.utils.llist import LListNode
 
+import copy
+
 # returns None if there is a cycle
 def depth(tree: dict) -> int | None:
     class Loop(Exception):
@@ -50,22 +52,3 @@ def is_cyclic(tree: dict) -> bool:
 
     return get_is_cyclic(tree, set())
 
-def traces(tree: dict) -> list[LListNode]:
-    def get_traces(tree: dict, visited: dict[int, LListNode]) -> list[tuple[LListNode, LListNode]]:
-        res: list[LListNode] = []
-        for k, v in tree.items():
-            if id(v) in visited:
-                res += [(visited[id(v)], visited[id(v)])]
-                continue
-
-            node = LListNode((k, v))
-            if len(v) == 0:
-                res += [(node, node)]
-            else:
-                visited[id(v)] = node
-                res += [(trace, trace.add_next(node.value)) for trace, _ in get_traces(tree, visited)]
-                del visited[id(v)]
-
-        return res
-
-    return [trace for trace, _ in get_traces(tree, {})]

@@ -1,58 +1,46 @@
 #include <token.h>
+struct Token token(TokenType type, const char *beg, const char *end);
+struct Token space_token(const char *beg, const char *end);
+struct Token increment_token(const char *beg, const char *end);
+
+struct Token token(TokenType type, const char *beg, const char *end) {
+    return (struct Token){
+        .type = type,
+        .beg = beg,
+        .end = end,
+    };
+}
+
 struct Token get_token(const char *beg, const char *end) {
     if (beg == end) {
-        return (struct Token){
-            .type = TOK_EOF,
-            .beg = beg,
-            .end = beg,
-        };
+        return token(TOK_EOF, beg, beg);
     }
     const char *tok_end = beg + 1;
     switch (*beg) {
         case '{':
-            return (struct Token){
-                .type = TOK_OPEN_CURLY,
-                .beg = beg,
-                .end = tok_end,
-            };
+            return token(TOK_OPEN_CURLY, beg, tok_end);
         case '}':
-            return (struct Token){
-                .type = TOK_CLOSE_CURLY,
-                .beg = beg,
-                .end = tok_end,
-            };
+            return token(TOK_CLOSE_CURLY, beg, tok_end);
         case '(':
-            return (struct Token){
-                .type = TOK_OPEN_PARENTHESIS,
-                .beg = beg,
-                .end = tok_end,
-            };
+            return token(TOK_OPEN_PARENTHESIS, beg, tok_end);
         case ')':
-            return (struct Token){
-                .type = TOK_CLOSE_PARENTHESIS,
-                .beg = beg,
-                .end = tok_end,
-            };
+            return token(TOK_CLOSE_PARENTHESIS, beg, tok_end);
         case ';':
-            return (struct Token){
-                .type = TOK_SEMICOLON,
-                .beg = beg,
-                .end = tok_end,
-            };
+            return token(TOK_SEMICOLON, beg, tok_end);
+        case ' ':
+            return space_token(beg, end);
+        case '\n':
+            return space_token(beg, end);
+        case '+':
+            return increment_token(beg, end);
     }
-    // TODO: add this logic under the switch case
-    if (strncmp(tok_end, "++", end - tok_end) == 0) {
-        return (struct Token){
-            .type = TOK_INCREMENT,
-            .beg = beg,
-            .end = beg + 1,
-        };
-    }
-    // The get_token function is not ment to fail.
+    // TODO: handle overlapping token NAME
+    // TODO: handle overlapping token STRUCT
+    // The get_token function is not meant to fail.
     // Return EOF with len != 0 for unknown token
-    return (struct Token){
-        .type = TOK_EOF,
-        .beg = beg,
-        .end = beg + 1,
-    };
+    return token(TOK_EOF, beg, beg + 1);
 }
+
+struct Token space_token(const char *beg, const char *end) {}
+
+struct Token increment_token(const char *beg, const char *end) {}

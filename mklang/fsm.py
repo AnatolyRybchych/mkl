@@ -2,6 +2,7 @@ import copy
 import json
 import re
 from typing import Any, Self, Generic, TypeVar
+from mklang.utils.llist import LListNode
 
 Key = TypeVar('Key')
 
@@ -469,3 +470,40 @@ def get_all_nodes(node: Node) -> set[Node]:
                 unresolved.append(step)
 
     return visited
+
+def get_all_paths(node: Node) -> set[LListNode]:
+    res: dict[tuple, LListNode] = {}
+
+    def add_paths(bt: list[Node], visited: set[Node]):
+        nonlocal res
+        for steps in bt[-1].next.values():
+            for step in steps:
+                if len(step.next) == 0 and step.match or step in visited:
+                    path = LListNode(bt[0])
+                    cur = path
+                    for path_step in [*bt[1:], step]:
+                        cur = cur.add_next_node(LListNode(path_step))
+                    res[tuple(path.iter_break_cycles())] = path
+                    continue
+
+                if id(step) in visited:
+                    path = LListNode(bt[0])
+                    cur = path
+                    loop_root = None
+                    for path_step in bt[1:]:
+                        if path_step is step:
+                            loop_root = step
+                        cur = cur.add_next_node(LListNode(path_step))
+
+                    cur = cur.add_next_node(LListNode(loop_root))
+                    res[tuple(path.iter_break_cycles())] = path
+                    continue
+
+                visited.add(step)
+                bt.append(step)
+                add_paths(bt, visited)
+                bt.pop()
+                visited.remove(step)
+
+    add_paths([node], set([node]))
+    return set([value.next for value in res.values()])

@@ -29,6 +29,15 @@ class LListNode:
         for node in self.iter_nodes():
             yield node.value
 
+    def iter_break_cycles(self):
+        visited: set[LListNode] = set()
+        for node in self.iter_nodes():
+            if node in visited:
+                break
+
+            visited.add(node)
+            yield node.value
+
     def is_cyclic(self) -> bool:
         visited: set = set()
         for node in self.iter_nodes():

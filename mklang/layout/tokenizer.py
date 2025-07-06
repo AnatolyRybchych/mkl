@@ -102,8 +102,13 @@ class Tokenizer:
 
                 cycles = fsm.get_cycle_roots(tok_fsm)
                 nodes = fsm.get_all_nodes(tok_fsm)
+
                 if len(cycles) == 1:
                     get_cur_tok.body.add_comment(f'TODO: handle cyclic token {tok} ({len(cycles)} cycles, {len(nodes)} nodes)')
+
+                    paths = fsm.get_all_paths(tok_fsm)
+                    for path in paths:
+                        print(list(path.iter_break_cycles()))
                 elif len(cycles) != 0:
                     # TODO: the FSM tree is not optimal, it should be one cycle and two nodes for SPACE token
                     get_cur_tok.body.add_comment(f'TODO: handle complex cyclic token {tok} ({len(cycles)} cycles, {len(nodes)} nodes)')

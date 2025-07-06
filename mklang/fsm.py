@@ -197,14 +197,21 @@ def loop(node: Node):
     while len(unresolved) != 0:
         cur = unresolved.pop()
 
-        for step in cur.next.values():
-            for node in step:
-                if id(node) not in visited:
-                    visited.add(id(node))
-                    unresolved.append(node)
+        for steps in cur.next.values():
+            for node in steps:
+                if id(node) in visited:
+                    continue
 
-        if cur.match:
-            cur.next.update({k: copy.copy(steps) for k, steps in res.next.items()})
+                if node.match:
+                    if len(node.next) == 0:
+                        steps.remove(node)
+                        steps.add(res)
+                        continue
+
+                    node.next.update({k: copy.copy(beg_steps) for k, beg_steps in res.next.items()})
+
+                visited.add(id(node))
+                unresolved.append(node)
 
     res.match = True
 

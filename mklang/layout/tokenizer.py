@@ -83,7 +83,7 @@ class Tokenizer:
         beg_switch = body.add_switch(beg.deref())
 
         for tok, steps in unique_token_steps.items():
-            tok_fsm = fsm.filter_fsm(lambda node: node.data == tok, root)
+            tok_fsm = fsm.minimize(fsm.filter_fsm(lambda node: node.data == tok, root))
 
             path = token_path(root, tok)
             path_depth = tree.depth(path)
@@ -105,12 +105,7 @@ class Tokenizer:
 
                 if len(cycles) == 1:
                     get_cur_tok.body.add_comment(f'TODO: handle cyclic token {tok} ({len(cycles)} cycles, {len(nodes)} nodes)')
-
-                    paths = fsm.get_all_paths(tok_fsm)
-                    for path in paths:
-                        print(list(path.iter_break_cycles()))
                 elif len(cycles) != 0:
-                    # TODO: the FSM tree is not optimal, it should be one cycle and two nodes for SPACE token
                     get_cur_tok.body.add_comment(f'TODO: handle complex cyclic token {tok} ({len(cycles)} cycles, {len(nodes)} nodes)')
                 else:
                     get_cur_tok.body.add_comment(f'TODO: handle non-cyclic token {tok}')

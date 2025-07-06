@@ -43,7 +43,7 @@ struct Token get_token(const char *beg, const char *end) {
 
 struct Token space_token(
     const char *beg,
-    const char *end) {  // TODO: handle cyclic token SPACE (1 cycles, 4 nodes)
+    const char *end) {  // TODO: handle cyclic token SPACE (1 cycles, 2 nodes)
 }
 
 struct Token increment_token(

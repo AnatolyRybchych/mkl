@@ -507,3 +507,121 @@ def get_all_paths(node: Node) -> set[LListNode]:
 
     add_paths([node], set([node]))
     return set([value.next for value in res.values()])
+
+def get_depth(node: Node) -> int:
+    res = 0
+    cur_gen: list[Node] = [node]
+    next_gen: list[Node] = []
+    visited: set[Node] = set()
+
+    while len(cur_gen) != 0:
+        while len(cur_gen) != 0:
+            cur = cur_gen.pop()
+            for steps in cur.next.values():
+                for step in steps:
+                    if step in visited:
+                        continue
+                    visited.add(step)
+                    next_gen.append(step)
+
+        cur_gen = next_gen
+        next_gen = []
+        res += 1
+
+    return res
+
+# returns dict[id(node), generation] where generation is distance to the edge
+def get_node_generations(node: Node) -> dict[int, int]:
+    res: dict[int, int] = {}
+
+    def add_generations(node: Node, visited: set[Node]) -> int | None:
+        nonlocal res
+
+        if len(node.next) == 0:
+            res[id(node)] = 0
+            return 0
+
+        if node in visited:
+            return 0
+        visited.add(node)
+
+        generations = []
+        cur_generation_steps: list[Node] = []
+        for steps in node.next.values():
+            for step in steps:
+                generation = add_generations(step, visited) 
+                generations += [generation + 1]
+                cur_generation_steps.append(step)
+
+        for step in cur_generation_steps:
+            res[id(step)] = min(generations)
+
+        return min(generations)
+
+    add_generations(node, set())
+    return res
+
+# returns all the locations for each node dict[id(Node), tuple[parent node, key]]
+def get_node_locations(node: Node) -> dict[int, list[tuple[Node, Any]]]:
+    res: dict[int, list[tuple[Node, Any]]] = {}
+    def add_location(parent: Node, key: Any, child: Node):
+        nonlocal res
+        assert child in parent.next[key]
+
+        res[id(child)] = res.get(id(child), []) + [(parent, key)]
+
+    visited: set[tuple[Node, Any, Node]] = set()
+    unresolved: list[Node] = [node]
+
+    while len(unresolved) != 0:
+        cur = unresolved.pop()
+        for key, steps in cur.next.items():
+            for step in steps:
+                location = (cur, key, step)
+                if location in visited:
+                    continue
+
+                unresolved.append(step)
+                visited.add(location)
+                add_location(*location)
+
+    return res
+
+def minimize(root_node: Node) -> Node:
+    res = copy.deepcopy(root_node)
+    node_generations = get_node_generations(res)
+    max_generation = max(node_generations.values())
+    generations: list[list[Node]] = [[]] * (max_generation + 1)
+    node_locations = get_node_locations(res)
+
+    for node in get_all_nodes(res):
+        if node is not res:
+            generations[node_generations[id(node)]].append(node)
+
+    def node_layout(node: Node) -> tuple:
+        next = []
+        for k, node_steps in node.next.items():
+            steps = sorted([id(step) for step in node_steps])
+            next.append((k, tuple(steps)))
+
+        next = tuple(sorted(next, key=lambda tuple: tuple[0]))
+
+        return (node.match, node.data, next)
+
+    while len(generations) != 0:
+        node_layouts: dict[tuple, list[Node]] = {}
+        cur_generation = generations.pop()
+
+        for node in cur_generation:
+            layout = node_layout(node)
+            node_layouts[layout] = node_layouts.get(layout, []) + [node]
+
+        for duplicate_nodes in node_layouts.values():
+            for node in duplicate_nodes[1:]:
+                for location in node_locations[id(node)]:
+                    parent, key = location
+                    if node in parent.next[key]:
+                        parent.next[key].remove(node)
+                    parent.next[key].add(duplicate_nodes[0])
+
+    return res

@@ -41,12 +41,28 @@ struct Token get_token(const char *beg, const char *end) {
     return token(TOK_EOF, beg, beg + 1);
 }
 
-struct Token space_token(
-    const char *beg,
-    const char *end) {  // TODO: handle cyclic token SPACE (1 cycles, 2 nodes)
+struct Token space_token(const char *beg, const char *end) {
+    const char *cur = beg;
+    if (cur == end || *cur != ' ' || *cur != '\n') {
+        return token(TOK_EOF, beg, cur);
+    }
+    cur = cur + 1;
+    while (1) {
+        if (cur == end || *cur != ' ' || *cur != '\n') {
+            return token(TOK_SPACE, beg, cur);
+        }
+        cur = cur + 1;
+    }
 }
 
-struct Token increment_token(
-    const char *beg,
-    const char *end) {  // TODO: handle non-cyclic token INCREMENT
+struct Token increment_token(const char *beg, const char *end) {
+    const char *cur = beg;
+    if (cur == end || *cur != '+') {
+        return token(TOK_EOF, beg, cur);
+    }
+    cur = cur + 1;
+    if (cur == end || *cur != '+') {
+        return token(TOK_EOF, beg, cur);
+    }
+    return token(TOK_INCREMENT, beg, cur);
 }

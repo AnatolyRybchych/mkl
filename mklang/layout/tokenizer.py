@@ -53,6 +53,62 @@ class Tokenizer:
             name: token_layout.Token(token_syntax) for name, token_syntax in syntax.tokens.items()
         }
 
+
+    def generate_get_specific_token(self, src_file: c.File, func_name: str, tok_fsm: fsm.Node, token: token_layout.Token) -> c.Func:
+        token_t = token_t = src_file.find_type('Token')
+        get_specific_token = src_file.func(token_t, func_name, (c.char.const().ptr(), 'beg'), (c.char.const().ptr(), 'end'))
+        body = get_specific_token.body
+        beg, end = body['beg'], body['end']
+        cur = body.declare(c.char.const().ptr(), 'cur', beg).var()
+        get_token = body['token']
+        token_type = src_file.find_type('TokenType')
+
+        def return_node_token(node: fsm.Node) -> c.Ret:
+            if node.match:
+                return c.Ret(get_token(token_type[self.tokens[node.data].enum_name()], beg, cur))
+            else:
+                return c.Ret(get_token(token_type['TOK_EOF'], beg, cur))
+
+        cycles = fsm.get_cycle_roots(tok_fsm)
+        nodes = fsm.get_all_nodes(tok_fsm)
+
+        unresolved: list[tuple[fsm.Node, Block, fsm.Node]] = [(tok_fsm, body, None)]
+
+        while len(unresolved) != 0:
+            fsm_node, block, cycle_jmp = unresolved.pop()
+
+            if fsm_node is cycle_jmp:
+                continue
+
+            if fsm_node in cycles:
+                cycle_jmp = fsm_node
+                block = block.add_while(c.Literal(1)).body
+
+            next_branches = list(set([step for steps in fsm_node.next.values() for step in steps]))
+
+            is_linear = len(next_branches) == 1
+            if not is_linear:
+                block.add_comment(f'TODO: handle non linear token {token.enum_name()}')
+                block.add_line(c.Ret(get_token(token_type['TOK_EOF'], beg, cur)))
+                continue
+
+            next_branch = next_branches[0]
+
+            conditions = [cur.deref() != c.Literal(key, 'char') for key in fsm_node.next.keys()]
+            condition = cur == end
+            for additional_condition in conditions:
+                condition = c.Or(condition, additional_condition)
+
+            block.add_if(condition, return_node_token(fsm_node))
+
+            if len(next_branch.next) == 0:
+                block.add_line(return_node_token(next_branch))
+            else:
+                block.add_line(cur.assign(cur + 1))
+                unresolved.append((next_branch, body, cycle_jmp))
+
+        return get_specific_token
+
     def generate_get_token(self, root: fsm.Node, c_src: c.File):
         token_steps: dict[str, set[int]] = group_by_token(root)
 
@@ -83,7 +139,7 @@ class Tokenizer:
         beg_switch = body.add_switch(beg.deref())
 
         for tok, steps in unique_token_steps.items():
-            tok_fsm = fsm.minimize(fsm.filter_fsm(lambda node: node.data == tok, root))
+            tok_fsm = fsm.filter_fsm(lambda node: node.data == tok, root)
 
             path = token_path(root, tok)
             path_depth = tree.depth(path)
@@ -94,21 +150,8 @@ class Tokenizer:
                 for step in steps:
                     beg_switch.add_case(c.Literal(step, 'char'), c.Ret(ret))
             else:
-                get_cur_tok = c_src.func(token_t, f'{tok.lower()}_token', (cstring_t, 'beg'), (cstring_t, 'end'))
-                cur_tok_body = get_cur_tok.body
-                beg_cur_tok, end_cur_tok = cur_tok_body['beg'], cur_tok_body['end']
-
+                get_cur_tok = self.generate_get_specific_token(c_src, f'{tok.lower()}_token', tok_fsm, self.tokens[tok])
                 c_src.declare(get_cur_tok.func_decl())
-
-                cycles = fsm.get_cycle_roots(tok_fsm)
-                nodes = fsm.get_all_nodes(tok_fsm)
-
-                if len(cycles) == 1:
-                    get_cur_tok.body.add_comment(f'TODO: handle cyclic token {tok} ({len(cycles)} cycles, {len(nodes)} nodes)')
-                elif len(cycles) != 0:
-                    get_cur_tok.body.add_comment(f'TODO: handle complex cyclic token {tok} ({len(cycles)} cycles, {len(nodes)} nodes)')
-                else:
-                    get_cur_tok.body.add_comment(f'TODO: handle non-cyclic token {tok}')
 
                 for step in steps:
                     beg_switch.add_case(c.Literal(step, 'char'), c.Ret(c.Fn(get_cur_tok.name)(beg, end)))
@@ -135,8 +178,8 @@ class Tokenizer:
             end = c.char.const().ptr()).typedef()
         token_h.declare(token)
 
-        control_flow: fsm.Node = fsm.any(
+        control_flow: fsm.Node = fsm.minimize(fsm.any(
             *[fsm.from_expr(tok.expr, tok.name) for tok in self.tokens.values()]
-        )
+        ))
 
         self.generate_get_token(control_flow, token_c)

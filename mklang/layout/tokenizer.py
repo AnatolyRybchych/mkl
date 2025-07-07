@@ -82,6 +82,8 @@ class Tokenizer:
 
             if fsm_node in cycles:
                 cycle_jmp = fsm_node
+                block.add_comment(f'TODO: move the first if statement in the loop under the loop condition')
+                block.add_comment(f'TODO: move the last "cur += 1" under the for increment expression')
                 block = block.add_while(c.Literal(1)).body
 
             next_branches = list(set([step for steps in fsm_node.next.values() for step in steps]))
@@ -99,6 +101,7 @@ class Tokenizer:
             for additional_condition in conditions:
                 condition = c.Or(condition, additional_condition)
 
+            block.add_comment(f'TODO: replace repetitive ifs with strncmp if possible')
             block.add_if(condition, return_node_token(fsm_node))
 
             if len(next_branch.next) == 0:

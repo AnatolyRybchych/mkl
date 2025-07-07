@@ -42,12 +42,15 @@ struct Token get_token(const char *beg, const char *end) {
 }
 
 struct Token space_token(const char *beg, const char *end) {
-    const char *cur = beg;
+    const char *cur =
+        beg;  // TODO: replace repetitive ifs with strncmp if possible
     if (cur == end || *cur != ' ' || *cur != '\n') {
         return token(TOK_EOF, beg, cur);
     }
-    cur = cur + 1;
-    while (1) {
+    cur = cur + 1;  // TODO: move the first if statement in the loop under the
+                    // loop condition
+    // TODO: move the last "cur += 1" under the for increment expression
+    while (1) {  // TODO: replace repetitive ifs with strncmp if possible
         if (cur == end || *cur != ' ' || *cur != '\n') {
             return token(TOK_SPACE, beg, cur);
         }
@@ -56,11 +59,12 @@ struct Token space_token(const char *beg, const char *end) {
 }
 
 struct Token increment_token(const char *beg, const char *end) {
-    const char *cur = beg;
+    const char *cur =
+        beg;  // TODO: replace repetitive ifs with strncmp if possible
     if (cur == end || *cur != '+') {
         return token(TOK_EOF, beg, cur);
     }
-    cur = cur + 1;
+    cur = cur + 1;  // TODO: replace repetitive ifs with strncmp if possible
     if (cur == end || *cur != '+') {
         return token(TOK_EOF, beg, cur);
     }

@@ -206,9 +206,6 @@ class Tokenizer:
 
         body.add_if(beg == end, c.Ret(token_ctor(token_type['TOK_EOF'], beg, beg)))
 
-        body.declare(cstring_t, 'tok_end', beg + 1)
-        tok_end = body['tok_end']
-
         beg_switch = body.add_switch(beg.deref())
 
         for tok, steps in unique_token_steps.items():
@@ -218,7 +215,7 @@ class Tokenizer:
             path_depth = tree.depth(path)
 
             if path_depth == 1:
-                ret = token_ctor(token_type[self.tokens[tok].enum_name()], beg, tok_end)
+                ret = token_ctor(token_type[self.tokens[tok].enum_name()], beg, beg + 1)
 
                 for step in steps:
                     beg_switch.add_case(c.Literal(step, 'char'), c.Ret(ret))
@@ -229,28 +226,26 @@ class Tokenizer:
                 for step in steps:
                     beg_switch.add_case(c.Literal(step, 'char'), c.Ret(c.Fn(get_cur_tok.name)(beg, end)))
 
-        handled: set[str] = set()
-        for tok, steps in overlapping_token_steps.items():
-            if tok in handled:
-                continue
+        for tok in overlapping_token_steps.keys():
+            if self.tokens[tok].order is None:
+                raise Exception(f'The token "{tok}" overlaps with {' '.join(token_overlappings(token_steps, tok))}.\
+                                Use "order" field to resolve the issue')
 
-            overlappings = token_overlappings(token_steps, tok)
-            affected_tokens = [tok, *overlappings]
+        overlapping_tokens = sorted(overlapping_token_steps.keys(), key=lambda tok: self.tokens[tok].order)
+
+        cur_token = None
+        for tok in overlapping_tokens:
             tok_fsm = fsm.filter_fsm(lambda node: node.data == tok, root)
-            handled.update(affected_tokens)
-
-            get_tok_fn_name = '_or_'.join(map(lambda tok: tok.lower(), affected_tokens))
-
-            get_cur_tok = self.generate_get_specific_token(c_src, f'{get_tok_fn_name}_token', tok_fsm, self.tokens[tok])
+            get_cur_tok = self.generate_get_specific_token(c_src, f'{tok.lower()}_token', tok_fsm, self.tokens[tok])
             c_src.declare(get_cur_tok.func_decl())
 
-            for step in steps:
-                beg_switch.add_case(c.Literal(step, 'char'), c.Ret(c.Fn(get_cur_tok.name)(beg, end)))
+            if not cur_token:
+                cur_token = body.declare(token_t, 'cur_token', c.Fn(get_cur_tok.name)(beg, end)).var()
+            else:
+                body.add_line(cur_token.assign(c.Fn(get_cur_tok.name)(beg, end)))
+            
+            body.add_if(cur_token['type'] == token_type[self.tokens[tok].enum_name()], c.Ret(cur_token))
 
-            # body.add_comment(f'TODO: handle overlapping token {tok}')
-
-        body.add_comment('The get_token function is not meant to fail.')
-        body.add_comment('Return EOF with len != 0 for unknown token')
         body.add_line(c.Ret(token_ctor(token_type['TOK_EOF'], beg, beg + 1)))
 
     def generate(self, code: c.Codebase):

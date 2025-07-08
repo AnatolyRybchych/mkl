@@ -1,12 +1,7 @@
 <layout>
     <tokenizer>
-        <token name="NAME">[a-zA-Z_][a-zA-Z0-9_]*</token>
-
-        <!--
-            Thec idea to make keywords to overcome NAME because its more precise match
-            e.g. NAME could have possible characters after the end of the keyword.
-        -->
-        <token name="STRUCT">struct</token> 
+        <token name="NAME" order="1">[a-zA-Z_][a-zA-Z0-9_]*</token>
+        <token name="STRUCT" order="0">struct</token> 
         <token name="OPEN_CURLY">{</token>
         <token name="CLOSE_CURLY">}</token>
         <token name="OPEN_PARENTHESIS">\(</token>

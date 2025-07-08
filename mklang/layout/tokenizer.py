@@ -134,9 +134,9 @@ class Tokenizer:
 
         def return_node_token(node: fsm.Node, end) -> c.Ret:
             if node.match:
-                return c.Ret(get_token(token_type[self.tokens[node.data].enum_name()], beg, cur))
+                return c.Ret(get_token(token_type[self.tokens[node.data].enum_name()], beg, end))
             else:
-                return c.Ret(get_token(token_type['TOK_EOF'], beg, end))
+                return c.Ret(get_token(token_type['TOK_EOF'], beg, cur))
 
         cycles = fsm.get_cycle_roots(tok_fsm)
         nodes = fsm.get_all_nodes(tok_fsm)
@@ -168,7 +168,7 @@ class Tokenizer:
                 while_loop = block.add_while(condition)
                 block.add_line(return_node_token(fsm_node, cur))
                 block = while_loop.body.add_logical_block()
-                block.add_line(cur.assign(cur + 1))
+                increment = 1
                 block_tail = while_loop.body.add_logical_block()
             else:
                 condition = c.Or(cur == end, make_condition(fsm_node.next.keys(), cur.deref(), True))
@@ -179,15 +179,16 @@ class Tokenizer:
                         end - cur < len(string),
                         c.Fn('memcmp')(cur, str_literal, len(string))
                     ), c.Ret(get_token(token_type['TOK_EOF'], beg, cur)))
-                    block.add_line(cur.assign(cur + len(string)))
+                    increment = len(string)
                     next_branch = last_string_node
                 else:
                     block.add_if(condition, return_node_token(fsm_node, cur))
-                    block.add_line(cur.assign(cur + 1))
+                    increment = 1
 
             if len(next_branch.next) == 0:
-                block.add_line(return_node_token(next_branch, cur))
+                block.add_line(return_node_token(next_branch, cur + increment))
             else:
+                block.add_line(cur.assign(cur + increment))
                 unresolved.append((next_branch, block, block_tail, cycle_jmp))
 
         return get_specific_token
@@ -242,6 +243,9 @@ class Tokenizer:
                                 Use "order" field to resolve the issue')
 
         overlapping_tokens = sorted(overlapping_token_steps.keys(), key=lambda tok: self.tokens[tok].order)
+
+        body.add_comment(f'TODO: STRUCT is subset of NAME')
+        body.add_comment(f'We should not handle STRUCT if token is not NAME')
 
         cur_token = None
         for tok in overlapping_tokens:

@@ -35,6 +35,8 @@ struct Token get_token(const char *beg, const char *end) {
         case '+':
             return increment_token(beg, end);
     }
+    // TODO: STRUCT is subset of NAME
+    // We should not handle STRUCT if token is not NAME
     struct Token cur_token = struct_token(beg, end);
     if (cur_token.type == TOK_STRUCT) {
         return cur_token;
@@ -63,8 +65,7 @@ struct Token increment_token(const char *beg, const char *end) {
     if (end - cur < 2 || memcmp(cur, "++", 2)) {
         return token(TOK_EOF, beg, cur);
     }
-    cur = cur + 2;
-    return token(TOK_INCREMENT, beg, cur);
+    return token(TOK_INCREMENT, beg, cur + 2);
 }
 
 struct Token struct_token(const char *beg, const char *end) {
@@ -72,8 +73,7 @@ struct Token struct_token(const char *beg, const char *end) {
     if (end - cur < 6 || memcmp(cur, "struct", 6)) {
         return token(TOK_EOF, beg, cur);
     }
-    cur = cur + 6;
-    return token(TOK_STRUCT, beg, cur);
+    return token(TOK_STRUCT, beg, cur + 6);
 }
 
 struct Token name_token(const char *beg, const char *end) {

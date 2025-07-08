@@ -48,11 +48,11 @@ struct Token get_token(const char *beg, const char *end) {
 
 struct Token space_token(const char *beg, const char *end) {
     const char *cur = beg;
-    if (cur == end || *cur == ' ' || *cur == '\n') {
+    if (cur == end || *cur != ' ' && *cur != '\n') {
         return token(TOK_EOF, beg, cur);
     }
     cur = cur + 1;
-    while (!(cur == end || *cur == ' ' || *cur == '\n')) {
+    while (cur != end && (*cur == ' ' || *cur == '\n')) {
         cur = cur + 1;
     }
     return token(TOK_SPACE, beg, cur);
@@ -78,11 +78,11 @@ struct Token struct_token(const char *beg, const char *end) {
 
 struct Token name_token(const char *beg, const char *end) {
     const char *cur = beg;
-    if (cur == end || isalpha(*cur) || *cur == '_') {
+    if (cur == end || !isalpha(*cur) && *cur != '_') {
         return token(TOK_EOF, beg, cur);
     }
     cur = cur + 1;
-    while (!(cur == end || isalnum(*cur) || *cur == '_')) {
+    while (cur != end && (isalnum(*cur) || *cur == '_')) {
         cur = cur + 1;
     }
     return token(TOK_NAME, beg, cur);

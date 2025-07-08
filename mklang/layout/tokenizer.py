@@ -73,7 +73,7 @@ condition_shortcuts = {
     "isupper": set([b for b in range(128) if bytes([b]).isupper()]),
 }
 
-def make_condition(possible_values, target: c.Expr) -> c.Expr:
+def make_condition(possible_values, target: c.Expr, inverse = False) -> c.Expr:
     values = set(possible_values)
 
     conditions: list[c.Expr] = []
@@ -91,19 +91,28 @@ def make_condition(possible_values, target: c.Expr) -> c.Expr:
                 best_shortcut = shortcut
 
         if best_shortcut:
-            conditions.append(c.Fn(best_shortcut)(target))
+            if inverse:
+                conditions.append(c.Not(c.Fn(best_shortcut)(target)))
+            else:
+                conditions.append(c.Fn(best_shortcut)(target))
             values.difference_update(condition_shortcuts[best_shortcut])
         else:
             break
 
     for b in values:
-        conditions.append(target == c.Literal(b, 'char'))
+        if inverse:
+            conditions.append(target != c.Literal(b, 'char'))
+        else:
+            conditions.append(target == c.Literal(b, 'char'))
 
     assert len(conditions) != 0
     condition = conditions[0]
 
     for additional_condition in conditions[1:]:
-        condition = c.Or(condition, additional_condition)
+        if inverse:
+            condition = c.And(condition, additional_condition)
+        else:
+            condition = c.Or(condition, additional_condition)
 
     return condition
 
@@ -153,15 +162,16 @@ class Tokenizer:
 
             next_branch = next_branches[0]
 
-            condition = c.Or(cur == end, make_condition(fsm_node.next.keys(), cur.deref()))
             if fsm_node in cycles:
+                condition = c.And(cur != end, make_condition(fsm_node.next.keys(), cur.deref(), False))
                 cycle_jmp = fsm_node
-                while_loop = block.add_while(c.Not(condition))
+                while_loop = block.add_while(condition)
                 block.add_line(return_node_token(fsm_node, cur))
                 block = while_loop.body.add_logical_block()
                 block.add_line(cur.assign(cur + 1))
                 block_tail = while_loop.body.add_logical_block()
             else:
+                condition = c.Or(cur == end, make_condition(fsm_node.next.keys(), cur.deref(), True))
                 string, last_string_node = string_match(fsm_node)
                 if len(string) > 1:
                     str_literal = c.Literal(string)

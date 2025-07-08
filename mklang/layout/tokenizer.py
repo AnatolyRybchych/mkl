@@ -63,6 +63,51 @@ def string_match(node: fsm.Node) -> tuple[str, fsm.Node]:
 
     return string, list(node.next_generation())[0]
 
+condition_shortcuts = {
+    "isalnum": set([b for b in range(128) if bytes([b]).isalnum()]),
+    "isalpha": set([b for b in range(128) if bytes([b]).isalpha()]),
+    "isdigit": set([b for b in range(128) if bytes([b]).isdigit()]),
+    "isspace": set([b for b in range(128) if bytes([b]).isspace()]),
+    "isascii": set([b for b in range(128) if bytes([b]).isascii()]),
+    "islower": set([b for b in range(128) if bytes([b]).islower()]),
+    "isupper": set([b for b in range(128) if bytes([b]).isupper()]),
+}
+
+def make_condition(possible_values, target: c.Expr) -> c.Expr:
+    values = set(possible_values)
+
+    conditions: list[c.Expr] = []
+
+    while True:
+        best_shortcut = None
+        best_diff = 0
+        for shortcut, shortcut_values in condition_shortcuts.items():
+            if not shortcut_values.issubset(values):
+                continue
+
+            cur_diff = len(shortcut_values.intersection(values))
+            if cur_diff > best_diff:
+                best_diff = cur_diff
+                best_shortcut = shortcut
+
+        if best_shortcut:
+            conditions.append(c.Fn(best_shortcut)(target))
+            values.difference_update(condition_shortcuts[best_shortcut])
+        else:
+            break
+
+    for b in values:
+        conditions.append(target == c.Literal(b, 'char'))
+
+    assert len(conditions) != 0
+    condition = conditions[0]
+
+    for additional_condition in conditions[1:]:
+        condition = c.Or(condition, additional_condition)
+
+    return condition
+
+
 class Tokenizer:
     def __init__(self, syntax: syntax.Tokenizer):
         self.tokens = {
@@ -108,11 +153,7 @@ class Tokenizer:
 
             next_branch = next_branches[0]
 
-            conditions = [cur.deref() != c.Literal(key, 'char') for key in fsm_node.next.keys()]
-            condition = cur == end
-            for additional_condition in conditions:
-                condition = c.Or(condition, additional_condition)
-
+            condition = c.Or(cur == end, make_condition(fsm_node.next.keys(), cur.deref()))
             if fsm_node in cycles:
                 cycle_jmp = fsm_node
                 while_loop = block.add_while(c.Not(condition))
@@ -188,8 +229,25 @@ class Tokenizer:
                 for step in steps:
                     beg_switch.add_case(c.Literal(step, 'char'), c.Ret(c.Fn(get_cur_tok.name)(beg, end)))
 
+        handled: set[str] = set()
         for tok, steps in overlapping_token_steps.items():
-            body.add_comment(f'TODO: handle overlapping token {tok}')
+            if tok in handled:
+                continue
+
+            overlappings = token_overlappings(token_steps, tok)
+            affected_tokens = [tok, *overlappings]
+            tok_fsm = fsm.filter_fsm(lambda node: node.data == tok, root)
+            handled.update(affected_tokens)
+
+            get_tok_fn_name = '_or_'.join(map(lambda tok: tok.lower(), affected_tokens))
+
+            get_cur_tok = self.generate_get_specific_token(c_src, f'{get_tok_fn_name}_token', tok_fsm, self.tokens[tok])
+            c_src.declare(get_cur_tok.func_decl())
+
+            for step in steps:
+                beg_switch.add_case(c.Literal(step, 'char'), c.Ret(c.Fn(get_cur_tok.name)(beg, end)))
+
+            # body.add_comment(f'TODO: handle overlapping token {tok}')
 
         body.add_comment('The get_token function is not meant to fail.')
         body.add_comment('Return EOF with len != 0 for unknown token')

@@ -47,12 +47,27 @@ def token_overlappings(token_steps: dict[str, set[int]], token: str) -> set[str]
             res.add(cur_tok)
     return res
 
+def string_match(node: fsm.Node) -> tuple[str, fsm.Node]:
+    linear_path = fsm.get_linear_path(node).iter_break_cycles()
+
+    string = ""
+    for node in linear_path:
+        keys = list(node.next.keys())
+        if len(keys) != 1 or keys[0] == 0:
+            return string, node
+
+        if node.match:
+            break
+
+        string += str(bytes(keys), 'utf-8')
+
+    return string, list(node.next_generation())[0]
+
 class Tokenizer:
     def __init__(self, syntax: syntax.Tokenizer):
         self.tokens = {
             name: token_layout.Token(token_syntax) for name, token_syntax in syntax.tokens.items()
         }
-
 
     def generate_get_specific_token(self, src_file: c.File, func_name: str, tok_fsm: fsm.Node, token: token_layout.Token) -> c.Func:
         token_t = token_t = src_file.find_type('Token')
@@ -63,28 +78,25 @@ class Tokenizer:
         get_token = body['token']
         token_type = src_file.find_type('TokenType')
 
-        def return_node_token(node: fsm.Node) -> c.Ret:
+        def return_node_token(node: fsm.Node, end) -> c.Ret:
             if node.match:
                 return c.Ret(get_token(token_type[self.tokens[node.data].enum_name()], beg, cur))
             else:
-                return c.Ret(get_token(token_type['TOK_EOF'], beg, cur))
+                return c.Ret(get_token(token_type['TOK_EOF'], beg, end))
 
         cycles = fsm.get_cycle_roots(tok_fsm)
         nodes = fsm.get_all_nodes(tok_fsm)
 
-        unresolved: list[tuple[fsm.Node, Block, fsm.Node]] = [(tok_fsm, body, None)]
+        body_cur = body.add_logical_block()
+        body_tail = body.add_logical_block()
+
+        unresolved: list[tuple[fsm.Node, Block, Block, fsm.Node]] = [(tok_fsm, body_cur, body_tail, None)]
 
         while len(unresolved) != 0:
-            fsm_node, block, cycle_jmp = unresolved.pop()
+            fsm_node, block, block_tail, cycle_jmp = unresolved.pop()
 
             if fsm_node is cycle_jmp:
                 continue
-
-            if fsm_node in cycles:
-                cycle_jmp = fsm_node
-                block.add_comment(f'TODO: move the first if statement in the loop under the loop condition')
-                block.add_comment(f'TODO: move the last "cur += 1" under the for increment expression')
-                block = block.add_while(c.Literal(1)).body
 
             next_branches = list(set([step for steps in fsm_node.next.values() for step in steps]))
 
@@ -101,14 +113,31 @@ class Tokenizer:
             for additional_condition in conditions:
                 condition = c.Or(condition, additional_condition)
 
-            block.add_comment(f'TODO: replace repetitive ifs with strncmp if possible')
-            block.add_if(condition, return_node_token(fsm_node))
+            if fsm_node in cycles:
+                cycle_jmp = fsm_node
+                while_loop = block.add_while(c.Not(condition))
+                block.add_line(return_node_token(fsm_node, cur))
+                block = while_loop.body.add_logical_block()
+                block.add_line(cur.assign(cur + 1))
+                block_tail = while_loop.body.add_logical_block()
+            else:
+                string, last_string_node = string_match(fsm_node)
+                if len(string) > 1:
+                    str_literal = c.Literal(string)
+                    block.add_if(c.Or(
+                        end - cur < len(string),
+                        c.Fn('memcmp')(cur, str_literal, len(string))
+                    ), c.Ret(get_token(token_type['TOK_EOF'], beg, cur)))
+                    block.add_line(cur.assign(cur + len(string)))
+                    next_branch = last_string_node
+                else:
+                    block.add_if(condition, return_node_token(fsm_node, cur))
+                    block.add_line(cur.assign(cur + 1))
 
             if len(next_branch.next) == 0:
-                block.add_line(return_node_token(next_branch))
+                block.add_line(return_node_token(next_branch, cur))
             else:
-                block.add_line(cur.assign(cur + 1))
-                unresolved.append((next_branch, body, cycle_jmp))
+                unresolved.append((next_branch, block, block_tail, cycle_jmp))
 
         return get_specific_token
 

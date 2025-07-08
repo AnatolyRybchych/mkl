@@ -1,6 +1,6 @@
 <layout>
     <tokenizer>
-        <token name="NAME">[a-zA-Z_][a-zA-Z0-9_]*</token>
+        <!-- <token name="NAME">[a-zA-Z_][a-zA-Z0-9_]*</token> -->
 
         <!--
             Thec idea to make keywords to overcome NAME because its more precise match
@@ -17,7 +17,7 @@
     </tokenizer>
 
     <ast>
-        <node name="TYPE">
+        <!-- <node name="TYPE">
             <token name="NAME" field="name"/>
         </node>
 
@@ -34,6 +34,6 @@
             <token name="SEMICOLON"/>
             <token name="CLOSE_CURLY"/>
             <token name="SEMICOLON"/>
-        </node>
+        </node> -->
     </ast>
 </layout>

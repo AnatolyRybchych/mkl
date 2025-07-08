@@ -1,5 +1,6 @@
 #include <token.h>
 struct Token token(TokenType type, const char *beg, const char *end);
+struct Token struct_token(const char *beg, const char *end);
 struct Token space_token(const char *beg, const char *end);
 struct Token increment_token(const char *beg, const char *end);
 
@@ -17,6 +18,8 @@ struct Token get_token(const char *beg, const char *end) {
     }
     const char *tok_end = beg + 1;
     switch (*beg) {
+        case 's':
+            return struct_token(beg, end);
         case '{':
             return token(TOK_OPEN_CURLY, beg, tok_end);
         case '}':
@@ -34,39 +37,37 @@ struct Token get_token(const char *beg, const char *end) {
         case '+':
             return increment_token(beg, end);
     }
-    // TODO: handle overlapping token NAME
-    // TODO: handle overlapping token STRUCT
     // The get_token function is not meant to fail.
     // Return EOF with len != 0 for unknown token
     return token(TOK_EOF, beg, beg + 1);
 }
 
+struct Token struct_token(const char *beg, const char *end) {
+    const char *cur = beg;
+    if (end - cur < 6 || memcmp(cur, "struct", 6)) {
+        return token(TOK_EOF, beg, cur);
+    }
+    cur = cur + 6;
+    return token(TOK_STRUCT, beg, cur);
+}
+
 struct Token space_token(const char *beg, const char *end) {
-    const char *cur =
-        beg;  // TODO: replace repetitive ifs with strncmp if possible
+    const char *cur = beg;
     if (cur == end || *cur != ' ' || *cur != '\n') {
         return token(TOK_EOF, beg, cur);
     }
-    cur = cur + 1;  // TODO: move the first if statement in the loop under the
-                    // loop condition
-    // TODO: move the last "cur += 1" under the for increment expression
-    while (1) {  // TODO: replace repetitive ifs with strncmp if possible
-        if (cur == end || *cur != ' ' || *cur != '\n') {
-            return token(TOK_SPACE, beg, cur);
-        }
+    cur = cur + 1;
+    while (!(cur == end || *cur != ' ' || *cur != '\n')) {
         cur = cur + 1;
     }
+    return token(TOK_SPACE, beg, cur);
 }
 
 struct Token increment_token(const char *beg, const char *end) {
-    const char *cur =
-        beg;  // TODO: replace repetitive ifs with strncmp if possible
-    if (cur == end || *cur != '+') {
+    const char *cur = beg;
+    if (end - cur < 2 || memcmp(cur, "++", 2)) {
         return token(TOK_EOF, beg, cur);
     }
-    cur = cur + 1;  // TODO: replace repetitive ifs with strncmp if possible
-    if (cur == end || *cur != '+') {
-        return token(TOK_EOF, beg, cur);
-    }
+    cur = cur + 2;
     return token(TOK_INCREMENT, beg, cur);
 }

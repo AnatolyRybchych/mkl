@@ -625,3 +625,22 @@ def minimize(root_node: Node) -> Node:
                     parent.next[key].add(duplicate_nodes[0])
 
     return res
+
+def get_linear_path(node: Node) -> LListNode:
+    visited: dict[int, LListNode] = {}
+    cur_node = node
+    path: LListNode = LListNode(cur_node)
+    cur = path
+
+    while True:
+        if id(cur_node) in visited:
+            return cur.add_next_node(visited[id(cur_node)])
+
+        visited[id(cur_node)] = cur
+
+        branches = cur_node.next_generation()
+        if len(branches) != 1:
+            return path
+
+        cur_node = branches.pop()
+        cur = cur.add_next(cur_node)

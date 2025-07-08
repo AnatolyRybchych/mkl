@@ -3,7 +3,6 @@
 
 typedef enum {
     TOK_EOF,
-    TOK_NAME,
     TOK_STRUCT,
     TOK_OPEN_CURLY,
     TOK_CLOSE_CURLY,

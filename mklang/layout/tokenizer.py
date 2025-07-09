@@ -126,18 +126,6 @@ class Tokenizer:
         self.dump = syntax.dump
         self.token_prefix = syntax.token_prefix
 
-    def generate_token_type_str(self, src_file: c.File) -> c.Func:
-        token_type = src_file.find_type('TokenType')
-
-        token_type_str = src_file.func(c.char.const().ptr(), 'token_type_str', (token_type, 'type'))
-
-        switch = token_type_str.body.add_switch(token_type_str.body['type'])
-        for k, v in token_type.get_origin().fields:
-            switch.add_case(token_type[k], c.Ret(c.Literal(k)))
-        switch.set_default(c.Ret(c.Literal(0)))
-
-        return token_type_str
-
     def generate_get_specific_token(self, src_file: c.File, func_name: str, tok_fsm: fsm.Node, token: token_layout.Token) -> c.Func:
         token_t = token_t = src_file.find_type('Token')
         get_specific_token = src_file.func(token_t, func_name, (c.char.const().ptr(), 'beg'), (c.char.const().ptr(), 'end'))
@@ -303,7 +291,7 @@ class Tokenizer:
         token_h.declare(get_token.func_decl())
 
         if 'token_type' in self.dump or 'token' in self.dump:
-            token_type_dump = self.generate_token_type_str(token_c)
+            token_type_dump = token_c.enum_str_func('token_type_str', token_type, 'type')
             if 'token_type' in self.dump:
                 token_h.declare(token_type_dump.func_decl())
 

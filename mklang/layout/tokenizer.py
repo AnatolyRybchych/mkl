@@ -124,6 +124,7 @@ class Tokenizer:
         }
 
         self.dump = syntax.dump
+        self.token_prefix = syntax.token_prefix
 
     def generate_token_type_str(self, src_file: c.File) -> c.Func:
         token_type = src_file.find_type('TokenType')
@@ -150,7 +151,7 @@ class Tokenizer:
             if node.match:
                 return c.Ret(get_token(token_type[self.tokens[node.data].enum_name()], beg, end))
             else:
-                return c.Ret(get_token(token_type['TOK_EOF'], beg, cur))
+                return c.Ret(get_token(token_type['EOF'], beg, cur))
 
         cycles = fsm.get_cycle_roots(tok_fsm)
         nodes = fsm.get_all_nodes(tok_fsm)
@@ -171,7 +172,7 @@ class Tokenizer:
             is_linear = len(next_branches) == 1
             if not is_linear:
                 block.add_comment(f'TODO: handle non linear token {token.enum_name()}')
-                block.add_line(c.Ret(get_token(token_type['TOK_EOF'], beg, cur)))
+                block.add_line(c.Ret(get_token(token_type['EOF'], beg, cur)))
                 continue
 
             next_branch = next_branches[0]
@@ -192,7 +193,7 @@ class Tokenizer:
                     block.add_if(c.Or(
                         end - cur < len(string),
                         c.Fn('memcmp')(cur, str_literal, len(string))
-                    ), c.Ret(get_token(token_type['TOK_EOF'], beg, cur)))
+                    ), c.Ret(get_token(token_type['EOF'], beg, cur)))
                     increment = len(string)
                     next_branch = last_string_node
                 else:
@@ -229,7 +230,7 @@ class Tokenizer:
         body = get_token.body
         beg, end = body['beg'], body['end']
 
-        body.add_if(beg == end, c.Ret(token_ctor(token_type['TOK_EOF'], beg, beg)))
+        body.add_if(beg == end, c.Ret(token_ctor(token_type['EOF'], beg, beg)))
 
         beg_switch = body.add_switch(beg.deref())
 
@@ -274,7 +275,7 @@ class Tokenizer:
             
             body.add_if(cur_token['type'] == token_type[self.tokens[tok].enum_name()], c.Ret(cur_token))
 
-        body.add_line(c.Ret(token_ctor(token_type['TOK_EOF'], beg, beg + 1)))
+        body.add_line(c.Ret(token_ctor(token_type['EOF'], beg, beg + 1)))
 
         return get_token
 
@@ -285,7 +286,8 @@ class Tokenizer:
         token_c = code.add_new_file('token.c')
         token_c.include_file(token_h)
 
-        token_type = token_h.enum(f'TokenType', 'TOK_EOF', *[tok.enum_name() for tok in self.tokens.values()])
+        token_type = token_h.enum(f'TokenType', 'EOF', *[tok.enum_name() for tok in self.tokens.values()])
+        token_type.get_origin().set_prefix(self.token_prefix)
 
         token = token_h.struct('Token',
             type = token_type,

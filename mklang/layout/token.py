@@ -8,4 +8,4 @@ class Token:
         self.order: int | None = syntax.order
 
     def enum_name(self) -> str:
-        return f'TOK_{self.name}'
+        return f'{self.name}'

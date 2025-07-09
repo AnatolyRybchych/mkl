@@ -80,23 +80,23 @@ struct Token name_token(const char *beg, const char *end) {
 const char *token_type_str(TokenType type) {
     switch (type) {
         case TOK_EOF:
-            return "TOK_EOF";
+            return "EOF";
         case TOK_NAME:
-            return "TOK_NAME";
+            return "NAME";
         case TOK_STRUCT:
-            return "TOK_STRUCT";
+            return "STRUCT";
         case TOK_OPEN_CURLY:
-            return "TOK_OPEN_CURLY";
+            return "OPEN_CURLY";
         case TOK_CLOSE_CURLY:
-            return "TOK_CLOSE_CURLY";
+            return "CLOSE_CURLY";
         case TOK_OPEN_PARENTHESIS:
-            return "TOK_OPEN_PARENTHESIS";
+            return "OPEN_PARENTHESIS";
         case TOK_CLOSE_PARENTHESIS:
-            return "TOK_CLOSE_PARENTHESIS";
+            return "CLOSE_PARENTHESIS";
         case TOK_SEMICOLON:
-            return "TOK_SEMICOLON";
+            return "SEMICOLON";
         case TOK_SPACE:
-            return "TOK_SPACE";
+            return "SPACE";
         default:
             return 0;
     }

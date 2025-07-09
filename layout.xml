@@ -1,4 +1,9 @@
 <layout>
+    <settings>
+        <output_header_dir>./test/include</output_header_dir>
+        <output_source_dir>./test/src</output_source_dir>
+    </settings>
+
     <tokenizer>
         <token name="NAME" order="1">[a-zA-Z_][a-zA-Z0-9_]*</token>
         <token name="STRUCT" order="0">struct</token> 
@@ -8,7 +13,6 @@
         <token name="CLOSE_PARENTHESIS">\)</token>
         <token name="SEMICOLON">;</token>
         <token name="SPACE">[ \n]+</token>
-        <token name="INCREMENT">\+\+</token>
     </tokenizer>
 
     <ast>

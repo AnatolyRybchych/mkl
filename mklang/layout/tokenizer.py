@@ -263,10 +263,10 @@ class Tokenizer:
         body.add_line(c.Ret(token_ctor(token_type['TOK_EOF'], beg, beg + 1)))
 
     def generate(self, code: c.Codebase):
-        token_h = code.add_new_file('output/include/token.h')
+        token_h = code.add_new_file('token.h')
         token_h.set_include_guard('TOKENIZER_H')
 
-        token_c = code.add_new_file('output/src/token.c')
+        token_c = code.add_new_file('token.c')
         token_c.include_file(token_h)
 
         token_type = token_h.enum(f'TokenType', 'TOK_EOF', *[tok.enum_name() for tok in self.tokens.values()])

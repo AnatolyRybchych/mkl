@@ -1,7 +1,6 @@
 #include <token.h>
 struct Token token(TokenType type, const char *beg, const char *end);
 struct Token space_token(const char *beg, const char *end);
-struct Token increment_token(const char *beg, const char *end);
 struct Token struct_token(const char *beg, const char *end);
 struct Token name_token(const char *beg, const char *end);
 
@@ -32,8 +31,6 @@ struct Token get_token(const char *beg, const char *end) {
             return space_token(beg, end);
         case '\n':
             return space_token(beg, end);
-        case '+':
-            return increment_token(beg, end);
     }
     // TODO: STRUCT is subset of NAME
     // We should not handle STRUCT if token is not NAME
@@ -58,14 +55,6 @@ struct Token space_token(const char *beg, const char *end) {
         cur = cur + 1;
     }
     return token(TOK_SPACE, beg, cur);
-}
-
-struct Token increment_token(const char *beg, const char *end) {
-    const char *cur = beg;
-    if (end - cur < 2 || memcmp(cur, "++", 2)) {
-        return token(TOK_EOF, beg, cur);
-    }
-    return token(TOK_INCREMENT, beg, cur + 2);
 }
 
 struct Token struct_token(const char *beg, const char *end) {

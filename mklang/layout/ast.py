@@ -50,8 +50,8 @@ class Ast:
             self.nodes[name] = AstNode(node, mkop(node.op))
 
     def generate(self, code: c.Codebase):
-        ast_h = code.add_new_file('output/include/ast.h')
-        token_h = code.find_file('output/include/token.h')
+        ast_h = code.add_new_file('ast.h')
+        token_h = code.find_file('token.h')
 
         ast_h.set_include_guard('AST_H')
         ast_h.include_file(token_h)

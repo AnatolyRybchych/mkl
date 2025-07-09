@@ -193,7 +193,7 @@ class Tokenizer:
 
         return get_specific_token
 
-    def generate_get_token(self, root: fsm.Node, c_src: c.File):
+    def generate_get_token(self, root: fsm.Node, c_src: c.File) -> c.Func:
         token_steps: dict[str, set[int]] = group_by_token(root)
 
         overlapping_token_steps = {token: steps for token, steps in token_steps.items() if token_overlappings(token_steps, token)}
@@ -262,6 +262,8 @@ class Tokenizer:
 
         body.add_line(c.Ret(token_ctor(token_type['TOK_EOF'], beg, beg + 1)))
 
+        return get_token
+
     def generate(self, code: c.Codebase):
         token_h = code.add_new_file('token.h')
         token_h.set_include_guard('TOKENIZER_H')
@@ -281,4 +283,5 @@ class Tokenizer:
             *[fsm.from_expr(tok.expr, tok.name) for tok in self.tokens.values()]
         ))
 
-        self.generate_get_token(control_flow, token_c)
+        get_token = self.generate_get_token(control_flow, token_c)
+        token_h.declare(get_token.func_decl())

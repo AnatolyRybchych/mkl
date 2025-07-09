@@ -20,4 +20,6 @@ struct Token {
     const char *end;
 };
 
+struct Token get_token(const char *beg, const char *end);
+
 #endif  // TOKENIZER_H

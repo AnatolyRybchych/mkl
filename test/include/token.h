@@ -21,5 +21,6 @@ struct Token {
 };
 
 struct Token get_token(const char *beg, const char *end);
+const char *token_type_str(TokenType type);
 
 #endif  // TOKENIZER_H

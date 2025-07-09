@@ -76,3 +76,28 @@ struct Token name_token(const char *beg, const char *end) {
     }
     return token(TOK_NAME, beg, cur);
 }
+
+const char *token_type_str(TokenType type) {
+    switch (type) {
+        case TOK_EOF:
+            return "TOK_EOF";
+        case TOK_NAME:
+            return "TOK_NAME";
+        case TOK_STRUCT:
+            return "TOK_STRUCT";
+        case TOK_OPEN_CURLY:
+            return "TOK_OPEN_CURLY";
+        case TOK_CLOSE_CURLY:
+            return "TOK_CLOSE_CURLY";
+        case TOK_OPEN_PARENTHESIS:
+            return "TOK_OPEN_PARENTHESIS";
+        case TOK_CLOSE_PARENTHESIS:
+            return "TOK_CLOSE_PARENTHESIS";
+        case TOK_SEMICOLON:
+            return "TOK_SEMICOLON";
+        case TOK_SPACE:
+            return "TOK_SPACE";
+        default:
+            return 0;
+    }
+}

@@ -109,6 +109,8 @@ void token_dump(struct Token token, FILE *out) {
     for (const char *cur = token.beg; cur != token.end; cur = cur + 1) {
         if (*cur == '\"' || *cur == '\\' || *cur == '\'') {
             fprintf(out, "\\%c", *cur);
+        } else if (*cur == '\n') {
+            fprintf(out, "\\n");
         } else if (ispunct(*cur) || isalnum(*cur) || *cur == ' ') {
             fprintf(out, "%c", *cur);
         } else {

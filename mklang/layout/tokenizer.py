@@ -147,6 +147,8 @@ class Tokenizer:
         if_statement = loop.body.add_if(is_escape_print,
             fprintf(out, c.Literal("\\%c"), cur.deref()))
 
+        if_statement = if_statement.otherwice.add_if(cur.deref() == c.Literal('\n', 'char'), fprintf(out, c.Literal('\\n')))
+
         is_sane_print = c.Fn('ispunct')(cur.deref())
         is_sane_print = c.Or(is_sane_print, c.Fn('isalnum')(cur.deref()))
         is_sane_print = c.Or(is_sane_print, cur.deref() == c.Literal(' ', 'char'))

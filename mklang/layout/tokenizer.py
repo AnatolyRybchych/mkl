@@ -295,7 +295,7 @@ class Tokenizer:
                 cur_token = body.declare(token_t, 'cur_token', c.Fn(get_cur_tok.name)(beg, end)).var()
             else:
                 body.add_line(cur_token.assign(c.Fn(get_cur_tok.name)(beg, end)))
-            
+
             body.add_if(cur_token['type'] == token_type[self.tokens[tok].enum_name()], c.Ret(cur_token))
 
         body.add_line(c.Ret(token_ctor(token_type['EOF'], beg, beg + 1)))

@@ -25,7 +25,8 @@ int main(void) {
     while (true) {
         Token tok = get_token(cur, source_end);
 
-        printf("TOK %s: %.*s\n", token_type_str(tok.type), (int)(tok.end - tok.beg), tok.beg);
+        token_dump(tok, stdout);
+        printf("\n");
 
         if(tok.type == TOK_EOF) {
             break;

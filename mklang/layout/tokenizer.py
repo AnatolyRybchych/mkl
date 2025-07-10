@@ -126,6 +126,39 @@ class Tokenizer:
         self.dump = syntax.dump
         self.token_prefix = syntax.token_prefix
 
+    def generate_token_dump(self, src_file: c.File) -> c.Func:
+        token_t = token_t = src_file.find_type('Token')
+        token_dump = src_file.func(c.void, 'token_dump', (token_t, 'token'), (c.ExternType('FILE').ptr(), 'out'))
+        body = token_dump.body
+        token, out = body['token'], body['out']
+
+        fprintf, token_type_str  = c.Fn('fprintf'), c.Fn('token_type_str')
+
+        body.add_line(fprintf(out, c.Literal('%s "'), token_type_str(token['type'])))
+
+        cur_decl = c.DeclVar(c.char.const().ptr(), 'cur', token['beg'])
+        cur = cur_decl.var()
+        loop = body.add_for(cur_decl, cur != token['end'], cur.assign(cur + 1))
+
+        is_escape_print = cur.deref() == c.Literal('"', 'char')
+        is_escape_print = c.Or(is_escape_print, cur.deref() == c.Literal('\\', 'char'))
+        is_escape_print = c.Or(is_escape_print, cur.deref() == c.Literal('\'', 'char'))
+
+        if_statement = loop.body.add_if(is_escape_print,
+            fprintf(out, c.Literal("\\%c"), cur.deref()))
+
+        is_sane_print = c.Fn('ispunct')(cur.deref())
+        is_sane_print = c.Or(is_sane_print, c.Fn('isalnum')(cur.deref()))
+        is_sane_print = c.Or(is_sane_print, cur.deref() == c.Literal(' ', 'char'))
+
+        if_statement.otherwice.add_if(is_sane_print,
+            fprintf(out, c.Literal("%c"), cur.deref()),
+            fprintf(out, c.Literal("\\x%02x"), cur.deref()))
+
+        body.add_line(fprintf(out, c.Literal('"')))
+
+        return token_dump
+
     def generate_get_specific_token(self, src_file: c.File, func_name: str, tok_fsm: fsm.Node, token: token_layout.Token) -> c.Func:
         token_t = token_t = src_file.find_type('Token')
         get_specific_token = src_file.func(token_t, func_name, (c.char.const().ptr(), 'beg'), (c.char.const().ptr(), 'end'))
@@ -297,3 +330,7 @@ class Tokenizer:
             if 'token_type' in self.dump:
                 token_h.declare(token_type_dump.func_decl())
 
+        if 'token' in self.dump:
+            token_h.include_file('stdio.h')
+            token_dump = self.generate_token_dump(token_c)
+            token_h.declare(token_dump.func_decl())

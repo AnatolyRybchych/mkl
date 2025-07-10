@@ -103,3 +103,17 @@ const char *token_type_str(TokenType type) {
             return 0;
     }
 }
+
+void token_dump(struct Token token, FILE *out) {
+    fprintf(out, "%s \"", token_type_str(token.type));
+    for (const char *cur = token.beg; cur != token.end; cur = cur + 1) {
+        if (*cur == '\"' || *cur == '\\' || *cur == '\'') {
+            fprintf(out, "\\%c", *cur);
+        } else if (ispunct(*cur) || isalnum(*cur) || *cur == ' ') {
+            fprintf(out, "%c", *cur);
+        } else {
+            fprintf(out, "\\x%02x", *cur);
+        }
+    }
+    fprintf(out, "\"");
+}

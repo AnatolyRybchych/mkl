@@ -5,7 +5,7 @@ from mklang.syntax.token import Token
 class Tokenizer:
     def __init__(self, **kw):
         self.tokens = {token['name']: Token(**token) for token in kw['tokens']}
-        self.dump = [v.strip() for v in kw.get('dump', 'token_type').split(',')]
+        self.dump = [v.strip() for v in kw.get('dump', 'token_type, token').split(',')]
         self.token_prefix = kw.get('token_prefix', 'TOKEN_')
 
     def parse_xml(node: ET.Element) -> dict:

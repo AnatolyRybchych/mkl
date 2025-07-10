@@ -1,6 +1,7 @@
 #ifndef TOKENIZER_H
 #define TOKENIZER_H
 
+#include <stdio.h>
 typedef enum {
     TOK_EOF,
     TOK_NAME,
@@ -22,5 +23,6 @@ struct Token {
 
 struct Token get_token(const char *beg, const char *end);
 const char *token_type_str(TokenType type);
+void token_dump(struct Token token, FILE *out);
 
 #endif  // TOKENIZER_H

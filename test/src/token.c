@@ -1,3 +1,5 @@
+#include <ctype.h>
+#include <string.h>
 #include <token.h>
 struct Token token(TokenType type, const char *beg, const char *end);
 struct Token space_token(const char *beg, const char *end);
@@ -47,7 +49,7 @@ struct Token get_token(const char *beg, const char *end) {
 
 struct Token space_token(const char *beg, const char *end) {
     const char *cur = beg;
-    if (cur == end || *cur != ' ' && *cur != '\n') {
+    if (cur == end || (*cur != ' ' && *cur != '\n')) {
         return token(TOK_EOF, beg, cur);
     }
     cur = cur + 1;
@@ -67,7 +69,7 @@ struct Token struct_token(const char *beg, const char *end) {
 
 struct Token name_token(const char *beg, const char *end) {
     const char *cur = beg;
-    if (cur == end || !isalpha(*cur) && *cur != '_') {
+    if (cur == end || (!isalpha(*cur) && *cur != '_')) {
         return token(TOK_EOF, beg, cur);
     }
     cur = cur + 1;

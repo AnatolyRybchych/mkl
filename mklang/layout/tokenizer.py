@@ -273,6 +273,8 @@ class Tokenizer:
 
         token_c = code.add_new_file('token.c')
         token_c.include_file(token_h)
+        token_c.include_file('ctype.h')
+        token_c.include_file('string.h')
 
         token_type = token_h.enum(f'TokenType', 'EOF', *[tok.enum_name() for tok in self.tokens.values()])
         token_type.get_origin().set_prefix(self.token_prefix)

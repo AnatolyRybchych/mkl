@@ -4,23 +4,32 @@
 #include <token.h>
 typedef enum { AST_TYPE, AST_FIELD, AST_STRUCT } AstType;
 
+typedef enum {
+    PARSERE_OK,
+    PARSERE_OUT_OF_MEMORY,
+    PARSERE_UNEXPECTED_TOKEN
+} ParserError;
+
 typedef struct Ast_Type Ast_Type;
 typedef struct Ast_Field Ast_Field;
 typedef struct Ast_Struct Ast_Struct;
+typedef struct AstNode AstNode;
+typedef struct Ast Ast;
+typedef struct Allocator Allocator;
 struct Ast_Type {
     AstType ast_type;
-    struct Token *name;
+    struct Token* name;
 };
 
 struct Ast_Field {
     AstType ast_type;
     Ast_Type type;
-    struct Token *name;
+    struct Token* name;
 };
 
 struct Ast_Struct {
     AstType ast_type;
-    struct Token *name;
+    struct Token* name;
     Ast_Field fields;
 };
 
@@ -33,11 +42,39 @@ struct AstNode {
     };
 };
 
-const struct Ast_Type *parse_type(const struct Token *beg,
-                                  const struct Token *end);
-const struct Ast_Field *parse_field(const struct Token *beg,
-                                    const struct Token *end);
-const struct Ast_Struct *parse_struct(const struct Token *beg,
-                                      const struct Token *end);
+struct Ast {
+    Allocator* allocator;
+    const AstNode* root;
+    struct NodeBox* nodes;
+};
+
+struct Allocator {
+    void* (*alloc)(Allocator* self, unsigned long size);
+    void (*free)(Allocator* self, void* ptr);
+};
+
+struct NodeBox {
+    struct NodeBox* next;
+    AstNode node[];
+};
+
+struct ParserCtx {
+    AstNode* root_node;
+    AstNode* cur_node;
+    struct {
+        const struct Token* beg;
+        const struct Token* cur;
+        const struct Token* end;
+    } tokenizer;
+};
+
+const struct Ast_Type* parse_type(const struct Token* beg,
+                                  const struct Token* end);
+const struct Ast_Field* parse_field(const struct Token* beg,
+                                    const struct Token* end);
+const struct Ast_Struct* parse_struct(const struct Token* beg,
+                                      const struct Token* end);
+Ast* ast_init(Allocator* alloc);
+void ast_clean(Ast* ast);
 
 #endif  // AST_H

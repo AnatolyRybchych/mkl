@@ -1,12 +1,12 @@
 #include <ctype.h>
 #include <string.h>
 #include <token.h>
-struct Token token(TokenType type, const char *beg, const char *end);
-struct Token space_token(const char *beg, const char *end);
-struct Token struct_token(const char *beg, const char *end);
-struct Token name_token(const char *beg, const char *end);
+struct Token token(TokenType type, const char* beg, const char* end);
+struct Token space_token(const char* beg, const char* end);
+struct Token struct_token(const char* beg, const char* end);
+struct Token name_token(const char* beg, const char* end);
 
-struct Token token(TokenType type, const char *beg, const char *end) {
+struct Token token(TokenType type, const char* beg, const char* end) {
     return (struct Token){
         .type = type,
         .beg = beg,
@@ -14,7 +14,7 @@ struct Token token(TokenType type, const char *beg, const char *end) {
     };
 }
 
-struct Token get_token(const char *beg, const char *end) {
+struct Token get_token(const char* beg, const char* end) {
     if (beg == end) {
         return token(TOK_EOF, beg, beg);
     }
@@ -47,8 +47,8 @@ struct Token get_token(const char *beg, const char *end) {
     return token(TOK_EOF, beg, beg + 1);
 }
 
-struct Token space_token(const char *beg, const char *end) {
-    const char *cur = beg;
+struct Token space_token(const char* beg, const char* end) {
+    const char* cur = beg;
     if (cur == end || (*cur != ' ' && *cur != '\n')) {
         return token(TOK_EOF, beg, cur);
     }
@@ -59,16 +59,16 @@ struct Token space_token(const char *beg, const char *end) {
     return token(TOK_SPACE, beg, cur);
 }
 
-struct Token struct_token(const char *beg, const char *end) {
-    const char *cur = beg;
+struct Token struct_token(const char* beg, const char* end) {
+    const char* cur = beg;
     if (end - cur < 6 || memcmp(cur, "struct", 6)) {
         return token(TOK_EOF, beg, cur);
     }
     return token(TOK_STRUCT, beg, cur + 6);
 }
 
-struct Token name_token(const char *beg, const char *end) {
-    const char *cur = beg;
+struct Token name_token(const char* beg, const char* end) {
+    const char* cur = beg;
     if (cur == end || (!isalpha(*cur) && *cur != '_')) {
         return token(TOK_EOF, beg, cur);
     }
@@ -79,7 +79,7 @@ struct Token name_token(const char *beg, const char *end) {
     return token(TOK_NAME, beg, cur);
 }
 
-const char *token_type_str(TokenType type) {
+const char* token_type_str(TokenType type) {
     switch (type) {
         case TOK_EOF:
             return "EOF";
@@ -104,9 +104,9 @@ const char *token_type_str(TokenType type) {
     }
 }
 
-void token_dump(struct Token token, FILE *out) {
+void token_dump(struct Token token, FILE* out) {
     fprintf(out, "%s \"", token_type_str(token.type));
-    for (const char *cur = token.beg; cur != token.end; cur = cur + 1) {
+    for (const char* cur = token.beg; cur != token.end; cur = cur + 1) {
         if (*cur == '\"' || *cur == '\\' || *cur == '\'') {
             fprintf(out, "\\%c", *cur);
         } else if (*cur == '\n') {

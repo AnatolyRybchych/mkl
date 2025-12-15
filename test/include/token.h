@@ -17,12 +17,12 @@ typedef enum {
 typedef struct Token Token;
 struct Token {
     TokenType type;
-    const char *beg;
-    const char *end;
+    const char* beg;
+    const char* end;
 };
 
-struct Token get_token(const char *beg, const char *end);
-const char *token_type_str(TokenType type);
-void token_dump(struct Token token, FILE *out);
+struct Token get_token(const char* beg, const char* end);
+const char* token_type_str(TokenType type);
+void token_dump(struct Token token, FILE* out);
 
 #endif  // TOKENIZER_H

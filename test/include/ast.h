@@ -14,8 +14,9 @@ typedef struct Ast_Type Ast_Type;
 typedef struct Ast_Field Ast_Field;
 typedef struct Ast_Struct Ast_Struct;
 typedef struct AstNode AstNode;
-typedef struct Ast Ast;
 typedef struct Allocator Allocator;
+typedef struct ParserCtx ParserCtx;
+typedef struct Ast Ast;
 struct Ast_Type {
     AstType ast_type;
     struct Token* name;
@@ -42,12 +43,6 @@ struct AstNode {
     };
 };
 
-struct Ast {
-    Allocator* allocator;
-    const AstNode* root;
-    struct NodeBox* nodes;
-};
-
 struct Allocator {
     void* (*alloc)(Allocator* self, unsigned long size);
     void (*free)(Allocator* self, void* ptr);
@@ -59,22 +54,25 @@ struct NodeBox {
 };
 
 struct ParserCtx {
-    AstNode* root_node;
     AstNode* cur_node;
     struct {
         const struct Token* beg;
         const struct Token* cur;
         const struct Token* end;
     } tokenizer;
+    ParserError error;
 };
 
-const struct Ast_Type* parse_type(const struct Token* beg,
-                                  const struct Token* end);
-const struct Ast_Field* parse_field(const struct Token* beg,
-                                    const struct Token* end);
-const struct Ast_Struct* parse_struct(const struct Token* beg,
-                                      const struct Token* end);
+struct Ast {
+    Allocator* allocator;
+    const AstNode* root;
+    struct NodeBox* nodes;
+};
+
 Ast* ast_init(Allocator* alloc);
 void ast_clean(Ast* ast);
+const Ast_Type* parse_type(Ast* ast, ParserCtx* ctx);
+const Ast_Field* parse_field(Ast* ast, ParserCtx* ctx);
+const Ast_Struct* parse_struct(Ast* ast, ParserCtx* ctx);
 
 #endif  // AST_H

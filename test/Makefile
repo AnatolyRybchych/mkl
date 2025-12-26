@@ -2,7 +2,7 @@ LIBS	:=
 CARGS	+= -Iinclude -ggdb -Wall -Wextra -pedantic -MMD #-Werror
 OUT		:= bin/out
 
-SOURCES		+= main.c token.c
+SOURCES		+= main.c token.c ast.c
 OBJECTS		:= $(addprefix obj/, $(SOURCES:.c=.o))
 DEPS		:= $(OBJECTS:.o=.d)
 

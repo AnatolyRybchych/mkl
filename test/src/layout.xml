@@ -1,7 +1,7 @@
 <layout>
     <settings>
-        <output_header_dir>./test/include</output_header_dir>
-        <output_source_dir>./test/src</output_source_dir>
+        <output_header_dir>./include</output_header_dir>
+        <output_source_dir>./src</output_source_dir>
     </settings>
 
     <tokenizer token_prefix="TOK_">

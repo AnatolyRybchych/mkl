@@ -16,6 +16,11 @@ obj/%.o: src/%.c
 	@mkdir -p $(dir $@)
 	$(CC) -c $(CARGS) -o $@ $<
 
+layout_output:
+	../run.py ./src/layout.xml
+
+src/*.c: layout_output
+
 run: $(OUT)
 	./$(OUT)
 
@@ -24,6 +29,6 @@ gdb: $(OUT)
 
 clean:
 	rm -f $(OUT)
-	rm -rf ./obj
+	rm -rf ./obj ./bin
 
 .PHONY: run gdb clean

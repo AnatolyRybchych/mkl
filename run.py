@@ -13,13 +13,15 @@ from mklang.layout import Layout
 import xml.etree.ElementTree as ET
 
 layout_file_path = 'layout.xml'
+if len(sys.argv) >= 2:
+    layout_file_path = sys.argv[1]
+
 layout_file_path = os.path.abspath(layout_file_path)
 with open(layout_file_path) as layout_file:
     layout_xml = ET.parse(layout_file)
 
 layout_dict = Syntax.parse_xml(layout_xml.getroot())
 print(json.dumps(layout_dict, indent=2))
-
 
 layout_syntax = Syntax(os.path.dirname(layout_file_path), **layout_dict)
 layout = Layout(layout_syntax)

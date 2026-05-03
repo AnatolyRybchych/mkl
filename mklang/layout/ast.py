@@ -127,8 +127,6 @@ class Ast:
             else:
                 assert False, f'Unexpected node type: {node_type}'
 
-
-
             next_steps: set[AstNode] = cur_paths.next[expected_node]
             if len(next_steps) != 1:
                 body.add_comment('TODO: handle fancy if/switch dispatching')

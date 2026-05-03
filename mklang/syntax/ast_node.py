@@ -7,9 +7,6 @@ class AstNode:
         self.name = kw['name']
         self.op = AstOp(**kw['op'])
 
-        if self.op.type == 'seq':
-            self.op.items = [AstOp(**item) for item in self.op.items]
-
     def parse_xml(node: ET.Element) -> dict:
         assert node.tag == 'node'
 

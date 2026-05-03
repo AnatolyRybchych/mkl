@@ -17,7 +17,7 @@ obj/%.o: src/%.c
 	$(CC) -c $(CARGS) -o $@ $<
 
 layout_output:
-	../run.py ./src/layout.xml
+	python3 -B ../run.py ./src/layout.xml
 
 src/*.c: layout_output
 

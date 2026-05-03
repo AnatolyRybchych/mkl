@@ -2,7 +2,7 @@
 #define AST_H
 
 #include <token.h>
-typedef enum { AST_TYPE, AST_FIELD, AST_STRUCT } AstType;
+typedef enum { AST_TYPE, AST_FIELDS, AST_STRUCT } AstType;
 
 typedef enum {
     PARSERE_OK,
@@ -11,7 +11,7 @@ typedef enum {
 } ParserError;
 
 typedef struct Ast_Type Ast_Type;
-typedef struct Ast_Field Ast_Field;
+typedef struct Ast_Fields Ast_Fields;
 typedef struct Ast_Struct Ast_Struct;
 typedef struct AstNode AstNode;
 typedef struct Allocator Allocator;
@@ -19,26 +19,27 @@ typedef struct ParserCtx ParserCtx;
 typedef struct Ast Ast;
 struct Ast_Type {
     AstType ast_type;
-    struct Token* name;
+    const struct Token* name;
 };
 
-struct Ast_Field {
+struct Ast_Fields {
     AstType ast_type;
     const Ast_Type* type;
-    struct Token* name;
+    const struct Token* name;
+    const Ast_Fields* next;
 };
 
 struct Ast_Struct {
     AstType ast_type;
-    struct Token* name;
-    const Ast_Field* fields;
+    const struct Token* name;
+    const Ast_Fields* fields;
 };
 
 struct AstNode {
     union {
         AstType ast_type;
         Ast_Type node_type;
-        Ast_Field node_field;
+        Ast_Fields node_fields;
         Ast_Struct node_struct;
     };
 };
@@ -72,7 +73,7 @@ struct Ast {
 Ast* ast_init(Allocator* alloc);
 void ast_clean(Ast* ast);
 const Ast_Type* parse_type(Ast* ast, ParserCtx* ctx);
-const Ast_Field* parse_field(Ast* ast, ParserCtx* ctx);
+const Ast_Fields* parse_fields(Ast* ast, ParserCtx* ctx);
 const Ast_Struct* parse_struct(Ast* ast, ParserCtx* ctx);
 
 #endif  // AST_H

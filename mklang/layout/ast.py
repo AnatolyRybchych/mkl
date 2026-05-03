@@ -9,6 +9,7 @@ import mklang.layout.token as token_layout
 import mklang.fsm as fsm
 
 import mkc as c
+import copy
 
 class AstOp:
     def __init__(self, type: str, syntax: ast_op_syntax.AstOp, **kw):
@@ -19,20 +20,33 @@ class AstOp:
         self.items: list[AstOp] = kw.get('items', [])
 
     def make_fsm(self) -> fsm.Node:
+        to_fsm = lambda x: x if type(x) is fsm.Node else x.make_fsm() if type(x) is AstOp else None
+
         if self.type == 'node':
-            res = fsm.Node(self.node.name)
+            res = fsm.Node(None)
             res.match = False
             res.ref_child(('node', self.node.name), fsm.Node(self))
             return res
 
         if self.type == 'token':
-            res = fsm.Node(self.token.name)
+            res = fsm.Node(None)
             res.match = False
             res.ref_child(('token', self.token.name), fsm.Node(self))
             return res
 
         if self.type == 'seq':
-            return fsm.seq(*[item.make_fsm() for item in self.items])
+            to_combine: list = copy.copy(self.items)
+
+            while len(to_combine) > 1:
+                first = to_combine.pop(0)
+                second = to_combine.pop(0)
+                if type(second) is AstOp and second.type == 'optional':
+                    assert type(first) is not AstOp or first.type != 'optional'
+                    to_combine.insert(0, fsm.add_optional(to_fsm(first), fsm.seq(*[item.make_fsm() for item in second.items])))
+                else:
+                    to_combine.insert(0, fsm.combine_sequentially(to_fsm(first), to_fsm(second)))
+                    
+            return to_fsm(to_combine[0])
 
         raise Exception(f'make_fsm() is not implemented for the AstOp of type "{self.type}"')
 
@@ -69,11 +83,16 @@ class Ast:
                 return AstOp('token', syntax, token = tokens[syntax.name])
             elif syntax.type == 'seq':
                 return AstOp('seq', syntax, items = [mkop(item) for item in syntax.items])
+            elif syntax.type == 'optional':
+                return AstOp('optional', syntax, items = [mkop(item) for item in syntax.items])
             else:
                 raise Exception(f'unexpected operation "{syntax.type}": {json.dumps(syntax, indent=2)}')
 
         for name, node in syntax.nodes.items():
-            self.nodes[name] = AstNode(node, mkop(node.op))
+            self.nodes[name] = AstNode(node, None)
+
+        for name, node in syntax.nodes.items():
+            self.nodes[name].op = mkop(node.op)
 
     def generate_parse_node(self, ast_c: c.File, node: AstNode) -> c.Func:
         cur_node_t = ast_c.find_type(node.struct_name()).typedef()
@@ -104,11 +123,12 @@ class Ast:
         paths = node.op.make_fsm()
         cycle_entries = fsm.get_cycle_roots(paths)
 
-        if cycle_entries:
-            body.add_comment(f'TODO: handle cyclic structures {cycle_entries}')
+        if len(cycle_entries) > 1:
+            body.add_comment(f'TODO: handle cyclic structures with multiple loops: {cycle_entries}')
             return parse_node
         
         cur_paths = paths
+        visited: set[fsm.Node] = set()
         while len(cur_paths.next) != 0:
             if len(cur_paths.next) != 1:
                 body.add_comment('TODO: handle fancy if/switch dispatching')
@@ -117,13 +137,14 @@ class Ast:
             expected_node = list(cur_paths.next.keys())[0]
             node_type, node = expected_node
 
+            matches = all(step.match for step in cur_paths.next_generation())
             if node_type == 'token':
                 body.add_if(c.NotEquals(cur.deref()["type"], token_type_t[node]),
-                    c.Ret(c.Cast(c.void.ptr(), c.Literal(0))))
+                    c.Ret(res if matches else c.Cast(c.void.ptr(), c.Literal(0))))
             elif node_type == 'node':
                 node_t: c.Type = body.find_type(self.nodes[node].struct_name())
-                node_found = body.declare(node_t.ptr(), 'node', c.Fn(self.nodes[node].parse_node_name())(ast, ctx)).var()
-                body.add_if(c.Not(node_found), c.Ret(c.Cast(c.void.ptr(), c.Literal(0))))
+                node_found = body.declare(node_t.const().ptr(), f'{node.lower()}_node', c.Fn(self.nodes[node].parse_node_name())(ast, ctx)).var()
+                body.add_if(c.Not(node_found), c.Ret(res if matches else c.Cast(c.void.ptr(), c.Literal(0))))
             else:
                 assert False, f'Unexpected node type: {node_type}'
 
@@ -134,7 +155,7 @@ class Ast:
             
             next_step: fsm.Node = list(next_steps)[0]
             ast_op: AstOp = next_step.data
-            if ast_op.field:
+            if ast_op and ast_op.field:
                 if node_type == 'token':
                     body.add_line(res.deref()[ast_op.field].assign(c.PostInc(cur)))
                 elif node_type == 'node':
@@ -144,7 +165,10 @@ class Ast:
             elif node_type == 'token':
                 body.add_line(cur.assign(cur + 1))
 
-            next_step = list(next_steps)[0]
+            if next_step in cycle_entries:
+                body.add_comment('TODO: loop')
+                visited.add(next_step)
+                break
             cur_paths = next_step
 
         body.add_line(c.Ret(res))
@@ -155,6 +179,7 @@ class Ast:
         ast_h = code.add_new_file('ast.h')
         ast_c = code.add_new_file('ast.c')
         ast_c.include_file(ast_h)
+        ast_c.include_file('string.h')
 
         token_h = code.find_file('token.h')
         ast_h.include_file(token_h)
@@ -172,9 +197,12 @@ class Ast:
 
         def node_field_type(op: AstOp) -> c.Type:
             if op.type == 'token':
-                return ast_h.find_type('Token').ptr()
+                return ast_h.find_type('Token').const().ptr()
             elif op.type == 'node':
                 return node_types[op.node.struct_name()].const().ptr()
+            elif op.type == 'optional':
+                assert len(op.items) == 1 and all(item.type == 'node' for item in op.items), '"optional" can only contain a single node'
+                return node_types[op.items[0].node.struct_name()].const().ptr()
             else:
                 raise Exception(f'Operation of type {op.type} is not supported')
 
@@ -300,7 +328,9 @@ class Ast:
             allocator = ast.deref()['allocator']
 
             res_slot = body.declare(node_slot_strcut.ptr(), 'res_slot', allocator.deref()['alloc'](allocator, slot_size)).var()
-            body.add_if(c.Not(res_slot), c.Ret(c.Cast(ast_node_t.const().ptr(), c.Literal(0))))
+            body.add_if(c.Not(res_slot), c.Ret(c.Cast(ast_node_t.ptr(), c.Literal(0))))
+
+            body.add_line(c.Fn('memset')(res_slot, 0, slot_size))
 
             body.add_line(res_slot.deref()['node'].deref()['ast_type'].assign(type))
             body.add_line(res_slot.deref()['next'].assign(ast.deref()['nodes']))

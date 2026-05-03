@@ -124,11 +124,13 @@ int main(void) {
         return 1;
     }
 
-    printf("struct %.*s\n", ast_struct->name->end - ast_struct->name->beg, ast_struct->name->beg);
-    printf("    %.*s %.*s.%.*s\n", 
-        ast_struct->fields->type->name->end - ast_struct->fields->type->name->beg, ast_struct->fields->type->name->beg,
-        ast_struct->name->end - ast_struct->name->beg, ast_struct->name->beg,
-        ast_struct->fields->name->end - ast_struct->fields->name->beg, ast_struct->fields->name->beg);
+    printf("struct %.*s\n", (int)(ast_struct->name->end - ast_struct->name->beg), ast_struct->name->beg);
+    for (const Ast_Fields *field = ast_struct->fields; field; field = field->next) {
+        printf("    %.*s %.*s.%.*s\n", 
+            (int)(field->type->name->end - field->type->name->beg), field->type->name->beg,
+            (int)(ast_struct->name->end - ast_struct->name->beg), ast_struct->name->beg,
+            (int)(field->name->end - field->name->beg), field->name->beg);
+    }
 
     ast_clean(ast);
 }

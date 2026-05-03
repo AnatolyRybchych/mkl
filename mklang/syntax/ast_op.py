@@ -5,7 +5,7 @@ class AstOp:
         self.type = kw['type']
         self.field = kw.get('field', None)
         self.name = kw.get('name', None)
-        self.items = kw.get('items', [])
+        self.items = [AstOp(**item) for item in kw.get('items', [])]
 
     def parse_xml(node: ET.Element) -> dict:
         base = {
@@ -25,4 +25,8 @@ class AstOp:
                 'name': node.attrib['name']
             }
 
-        raise Exception(f'Unexpected tag "{node.tag}" in ast node body')
+        if node.tag == 'optional':
+            return {
+                **base,
+                'items': [AstOp.parse_xml(item) for item in node]
+            }

@@ -20,17 +20,20 @@
             <token name="NAME" field="name"/>
         </node>
 
-        <node name="FIELD">
+        <node name="FIELDS">
             <node name="TYPE" field="type"/>
             <token name="NAME" field="name"/>
+            <token name="SEMICOLON"/>
+            <optional field="next">
+                <node name="FIELDS" field="next"/>
+            </optional>
         </node>
 
         <node name="STRUCT">
             <token name="STRUCT"/>
             <token name="NAME" field="name"/>
             <token name="OPEN_CURLY"/>
-            <node name="FIELD" field="fields"/>
-            <token name="SEMICOLON"/>
+            <node name="FIELDS" field="fields"/>
             <token name="CLOSE_CURLY"/>
             <token name="SEMICOLON"/>
         </node>

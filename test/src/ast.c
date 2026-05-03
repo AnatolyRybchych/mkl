@@ -1,4 +1,5 @@
 #include <ast.h>
+#include <string.h>
 unsigned long get_node_size(AstType type);
 AstNode* ast_node(Ast* ast, AstType type);
 
@@ -29,8 +30,8 @@ unsigned long get_node_size(AstType type) {
     switch (type) {
         case AST_TYPE:
             return sizeof(struct Ast_Type);
-        case AST_FIELD:
-            return sizeof(struct Ast_Field);
+        case AST_FIELDS:
+            return sizeof(struct Ast_Fields);
         case AST_STRUCT:
             return sizeof(struct Ast_Struct);
         default:
@@ -43,8 +44,9 @@ AstNode* ast_node(Ast* ast, AstType type) {
     unsigned long slot_size = sizeof(struct NodeBox) + node_size;
     struct NodeBox* res_slot = ast->allocator->alloc(ast->allocator, slot_size);
     if (!res_slot) {
-        return (const AstNode*)(0);
+        return (AstNode*)(0);
     }
+    memset(res_slot, 0, slot_size);
     res_slot->node->ast_type = type;
     res_slot->next = ast->nodes;
     ast->nodes = res_slot;
@@ -59,28 +61,37 @@ const Ast_Type* parse_type(Ast* ast, ParserCtx* ctx) {
     }
     ctx->cur_node = (AstNode*)(res);
     if (ctx->tokenizer.cur->type != TOK_NAME) {
-        return (void*)(0);
+        return res;
     }
     res->name = ctx->tokenizer.cur++;
     return res;
 }
 
-const Ast_Field* parse_field(Ast* ast, ParserCtx* ctx) {
-    Ast_Field* res = (Ast_Field*)(ast_node(ast, AST_FIELD));
+const Ast_Fields* parse_fields(Ast* ast, ParserCtx* ctx) {
+    Ast_Fields* res = (Ast_Fields*)(ast_node(ast, AST_FIELDS));
     if (!res) {
         ctx->error = PARSERE_OUT_OF_MEMORY;
         return res;
     }
     ctx->cur_node = (AstNode*)(res);
-    struct Ast_Type* node = parse_type(ast, ctx);
-    if (!node) {
+    const struct Ast_Type* type_node = parse_type(ast, ctx);
+    if (!type_node) {
         return (void*)(0);
     }
-    res->type = node;
+    res->type = type_node;
     if (ctx->tokenizer.cur->type != TOK_NAME) {
         return (void*)(0);
     }
     res->name = ctx->tokenizer.cur++;
+    if (ctx->tokenizer.cur->type != TOK_SEMICOLON) {
+        return (void*)(0);
+    }
+    ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
+    const struct Ast_Fields* fields_node = parse_fields(ast, ctx);
+    if (!fields_node) {
+        return res;
+    }
+    res->next = fields_node;
     return res;
 }
 
@@ -103,21 +114,17 @@ const Ast_Struct* parse_struct(Ast* ast, ParserCtx* ctx) {
         return (void*)(0);
     }
     ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
-    struct Ast_Field* node = parse_field(ast, ctx);
-    if (!node) {
+    const struct Ast_Fields* fields_node = parse_fields(ast, ctx);
+    if (!fields_node) {
         return (void*)(0);
     }
-    res->fields = node;
-    if (ctx->tokenizer.cur->type != TOK_SEMICOLON) {
-        return (void*)(0);
-    }
-    ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
+    res->fields = fields_node;
     if (ctx->tokenizer.cur->type != TOK_CLOSE_CURLY) {
         return (void*)(0);
     }
     ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
     if (ctx->tokenizer.cur->type != TOK_SEMICOLON) {
-        return (void*)(0);
+        return res;
     }
     ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
     return res;

@@ -124,5 +124,11 @@ int main(void) {
         return 1;
     }
 
+    printf("struct %.*s\n", ast_struct->name->end - ast_struct->name->beg, ast_struct->name->beg);
+    printf("    %.*s %.*s.%.*s\n", 
+        ast_struct->fields->type->name->end - ast_struct->fields->type->name->beg, ast_struct->fields->type->name->beg,
+        ast_struct->name->end - ast_struct->name->beg, ast_struct->name->beg,
+        ast_struct->fields->name->end - ast_struct->fields->name->beg, ast_struct->fields->name->beg);
+
     ast_clean(ast);
 }

@@ -24,14 +24,14 @@ struct Ast_Type {
 
 struct Ast_Field {
     AstType ast_type;
-    Ast_Type type;
+    const Ast_Type* type;
     struct Token* name;
 };
 
 struct Ast_Struct {
     AstType ast_type;
     struct Token* name;
-    Ast_Field fields;
+    const Ast_Field* fields;
 };
 
 struct AstNode {

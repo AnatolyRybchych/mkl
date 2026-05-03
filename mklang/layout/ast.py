@@ -22,13 +22,13 @@ class AstOp:
         if self.type == 'node':
             res = fsm.Node(self.node.name)
             res.match = False
-            res.ref_child(('node', self.node.name), fsm.Node(self.node.name))
+            res.ref_child(('node', self.node.name), fsm.Node(self))
             return res
 
         if self.type == 'token':
             res = fsm.Node(self.token.name)
             res.match = False
-            res.ref_child(('token', self.token.name), fsm.Node(self.token.name))
+            res.ref_child(('token', self.token.name), fsm.Node(self))
             return res
 
         if self.type == 'seq':
@@ -118,7 +118,7 @@ class Ast:
             node_type, node = expected_node
 
             if node_type == 'token':
-                body.add_if(c.NotEquals(c.PostInc(cur).deref()["type"], token_type_t[node]),
+                body.add_if(c.NotEquals(cur.deref()["type"], token_type_t[node]),
                     c.Ret(c.Cast(c.void.ptr(), c.Literal(0))))
             elif node_type == 'node':
                 node_t: c.Type = body.find_type(self.nodes[node].struct_name())
@@ -131,6 +131,18 @@ class Ast:
             if len(next_steps) != 1:
                 body.add_comment('TODO: handle fancy if/switch dispatching')
                 return parse_node
+            
+            next_step: fsm.Node = list(next_steps)[0]
+            ast_op: AstOp = next_step.data
+            if ast_op.field:
+                if node_type == 'token':
+                    body.add_line(res.deref()[ast_op.field].assign(c.PostInc(cur)))
+                elif node_type == 'node':
+                    body.add_line(res.deref()[ast_op.field].assign(node_found))
+                else:
+                    assert False, f'Unexpected node type: {node_type}'
+            elif node_type == 'token':
+                body.add_line(cur.assign(cur + 1))
 
             next_step = list(next_steps)[0]
             cur_paths = next_step
@@ -162,7 +174,7 @@ class Ast:
             if op.type == 'token':
                 return ast_h.find_type('Token').ptr()
             elif op.type == 'node':
-                return node_types[op.node.struct_name()]
+                return node_types[op.node.struct_name()].const().ptr()
             else:
                 raise Exception(f'Operation of type {op.type} is not supported')
 
@@ -185,7 +197,6 @@ class Ast:
         ast_h.declare(ast_node_t)
 
         ast_node_struct.add_field(ast_node_union, '')
-
 
         token_t = ast_h.find_type('Token')
 

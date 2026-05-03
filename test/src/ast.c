@@ -58,9 +58,10 @@ const Ast_Type* parse_type(Ast* ast, ParserCtx* ctx) {
         return res;
     }
     ctx->cur_node = (AstNode*)(res);
-    if ((ctx->tokenizer.cur++)->type != TOK_NAME) {
+    if (ctx->tokenizer.cur->type != TOK_NAME) {
         return (void*)(0);
     }
+    res->name = ctx->tokenizer.cur++;
     return res;
 }
 
@@ -75,9 +76,11 @@ const Ast_Field* parse_field(Ast* ast, ParserCtx* ctx) {
     if (!node) {
         return (void*)(0);
     }
-    if ((ctx->tokenizer.cur++)->type != TOK_NAME) {
+    res->type = node;
+    if (ctx->tokenizer.cur->type != TOK_NAME) {
         return (void*)(0);
     }
+    res->name = ctx->tokenizer.cur++;
     return res;
 }
 
@@ -88,27 +91,34 @@ const Ast_Struct* parse_struct(Ast* ast, ParserCtx* ctx) {
         return res;
     }
     ctx->cur_node = (AstNode*)(res);
-    if ((ctx->tokenizer.cur++)->type != TOK_STRUCT) {
+    if (ctx->tokenizer.cur->type != TOK_STRUCT) {
         return (void*)(0);
     }
-    if ((ctx->tokenizer.cur++)->type != TOK_NAME) {
+    ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
+    if (ctx->tokenizer.cur->type != TOK_NAME) {
         return (void*)(0);
     }
-    if ((ctx->tokenizer.cur++)->type != TOK_OPEN_CURLY) {
+    res->name = ctx->tokenizer.cur++;
+    if (ctx->tokenizer.cur->type != TOK_OPEN_CURLY) {
         return (void*)(0);
     }
+    ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
     struct Ast_Field* node = parse_field(ast, ctx);
     if (!node) {
         return (void*)(0);
     }
-    if ((ctx->tokenizer.cur++)->type != TOK_SEMICOLON) {
+    res->fields = node;
+    if (ctx->tokenizer.cur->type != TOK_SEMICOLON) {
         return (void*)(0);
     }
-    if ((ctx->tokenizer.cur++)->type != TOK_CLOSE_CURLY) {
+    ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
+    if (ctx->tokenizer.cur->type != TOK_CLOSE_CURLY) {
         return (void*)(0);
     }
-    if ((ctx->tokenizer.cur++)->type != TOK_SEMICOLON) {
+    ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
+    if (ctx->tokenizer.cur->type != TOK_SEMICOLON) {
         return (void*)(0);
     }
+    ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
     return res;
 }

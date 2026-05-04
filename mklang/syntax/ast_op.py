@@ -30,3 +30,9 @@ class AstOp:
                 **base,
                 'items': [AstOp.parse_xml(item) for item in node]
             }
+
+        if node.tag == 'any_of':
+            return {
+                **base,
+                'items': [AstOp.parse_xml(item) for item in node]
+            }

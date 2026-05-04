@@ -11,6 +11,15 @@ import mklang.fsm as fsm
 import mkc as c
 import copy
 
+def dbg(block, msg):
+    DEBUG: bool = True
+
+    if not DEBUG:
+        return
+
+    block.add_comment(f'DBG: {msg}')
+
+
 class AstOp:
     def __init__(self, type: str, syntax: ast_op_syntax.AstOp, **kw):
         self.type = type
@@ -42,7 +51,9 @@ class AstOp:
                 second = to_combine.pop(0)
                 if type(second) is AstOp and second.type == 'optional':
                     assert type(first) is not AstOp or first.type != 'optional'
-                    to_combine.insert(0, fsm.add_optional(to_fsm(first), fsm.seq(*[item.make_fsm() for item in second.items])))
+                    optional_second = fsm.seq(*[item.make_fsm() for item in second.items])
+                    optional_second.match = True
+                    to_combine.insert(0, fsm.combine_sequentially(to_fsm(first), optional_second))
                 else:
                     to_combine.insert(0, fsm.combine_sequentially(to_fsm(first), to_fsm(second)))
                     
@@ -112,7 +123,7 @@ class Ast:
         
         tokenizer_ctx = ctx.deref()['tokenizer']
         beg, cur, end = tokenizer_ctx['beg'], tokenizer_ctx['cur'], tokenizer_ctx['end']
-
+        variables = body.add_logical_block()
         res = body.declare(cur_node_t.ptr(), 'res', c.Cast(cur_node_t.ptr(), c.Fn('ast_node')(ast, ast_type_t[node.enum_name()]))).var()
         if_node_init_failed = body.add_if(c.Not(res))
         if_node_init_failed.then.add_line(ctx.deref()['error'].assign(parser_error_t['OUT_OF_MEMORY']))
@@ -120,59 +131,91 @@ class Ast:
 
         body.add_line(ctx.deref()['cur_node'].assign(c.Cast(ast_node_t.ptr(), res)))
 
-        paths = node.op.make_fsm()
-        cycle_entries = fsm.get_cycle_roots(paths)
-
-        if len(cycle_entries) > 1:
-            body.add_comment(f'TODO: handle cyclic structures with multiple loops: {cycle_entries}')
-            return parse_node
-        
-        cur_paths = paths
-        visited: set[fsm.Node] = set()
-        while len(cur_paths.next) != 0:
-            if len(cur_paths.next) != 1:
-                body.add_comment('TODO: handle fancy if/switch dispatching')
-                return parse_node
-
-            expected_node = list(cur_paths.next.keys())[0]
-            node_type, node = expected_node
-
-            matches = all(step.match for step in cur_paths.next_generation())
+        def check_step(node_type: str, node: AstOp, inverse: bool) -> c.Expr:
             if node_type == 'token':
-                body.add_if(c.NotEquals(cur.deref()["type"], token_type_t[node]),
-                    c.Ret(res if matches else c.Cast(c.void.ptr(), c.Literal(0))))
+                check = c.NotEquals if inverse else c.Equals
+                return check(cur.deref()["type"], token_type_t[node])
             elif node_type == 'node':
-                node_t: c.Type = body.find_type(self.nodes[node].struct_name())
-                node_found = body.declare(node_t.const().ptr(), f'{node.lower()}_node', c.Fn(self.nodes[node].parse_node_name())(ast, ctx)).var()
-                body.add_if(c.Not(node_found), c.Ret(res if matches else c.Cast(c.void.ptr(), c.Literal(0))))
+                node_t: c.Type = variables.find_type(self.nodes[node].struct_name())
+                node_var = variables.find_var(f'{node.lower()}_node') or variables.declare(node_t.const().ptr(), f'{node.lower()}_node', c.Literal(0)).var()
+                node_found = node_var.assign(c.Fn(self.nodes[node].parse_node_name())(ast, ctx))
+                return c.Not(node_found) if inverse else node_found
             else:
-                assert False, f'Unexpected node type: {node_type}'
+                assert False, f'Unexpected node: {(node_type, node)}'
 
-            next_steps: set[AstNode] = cur_paths.next[expected_node]
-            if len(next_steps) != 1:
-                body.add_comment('TODO: handle fancy if/switch dispatching')
-                return parse_node
-            
-            next_step: fsm.Node = list(next_steps)[0]
-            ast_op: AstOp = next_step.data
+        def on_step(block, ast_op: AstOp):
             if ast_op and ast_op.field:
-                if node_type == 'token':
-                    body.add_line(res.deref()[ast_op.field].assign(c.PostInc(cur)))
-                elif node_type == 'node':
-                    body.add_line(res.deref()[ast_op.field].assign(node_found))
+                if ast_op.type == 'token':
+                    block.add_line(res.deref()[ast_op.field].assign(c.PostInc(cur)))
+                elif ast_op.type == 'node':
+                    block.add_line(res.deref()[ast_op.field].assign(variables[f'{ast_op.node.name.lower()}_node']))
                 else:
                     assert False, f'Unexpected node type: {node_type}'
-            elif node_type == 'token':
-                body.add_line(cur.assign(cur + 1))
+            elif ast_op.type == 'token':
+                block.add_line(cur.assign(cur + 1))
 
-            if next_step in cycle_entries:
-                body.add_comment('TODO: loop')
-                visited.add(next_step)
-                break
-            cur_paths = next_step
+        def branch(body, paths: fsm.Node):
+            cycle_entries = fsm.get_cycle_roots(paths)
 
-        body.add_line(c.Ret(res))
+            if len(cycle_entries) > 1:
+                body.add_comment(f'TODO: handle cyclic structures with multiple loops: {cycle_entries}')
+                return parse_node
 
+            cur_paths = paths
+            visited: set[fsm.Node] = set()
+            while len(cur_paths.next) != 0:
+                next_branches = []
+                if len(cur_paths.next) == 1:
+                    expected_node = list(cur_paths.next.keys())[0]
+                    node_type, node = expected_node
+
+                    body.add_if(check_step(node_type, node, True),
+                            c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
+
+                    next_steps: set[AstNode] = cur_paths.next[expected_node]
+                    if len(next_steps) != 1:
+                        body.add_comment('TODO: handle fancy if/switch dispatching')
+                        return parse_node
+                    
+                    next_step: fsm.Node = list(next_steps)[0]
+                    ast_op: AstOp = next_step.data
+                    on_step(body, ast_op)
+
+                    if next_step in visited:
+                        body.add_comment(f'TODO: loop: {next_step.next}')
+                        break
+
+                    if next_step in cycle_entries:
+                        visited.add(next_step)
+                        
+                    cur_paths = next_step
+                else:
+                    token_branches = [branch for branch in cur_paths.next.keys() if branch[0] == 'token']
+                    non_token_branches = [branch for branch in cur_paths.next.keys() if branch[0] != 'token']
+
+                    cur_block = body
+                    for steps in token_branches + non_token_branches:
+                        node_type, node = steps
+                        if_statement = cur_block.add_if(check_step(node_type, node, False))
+
+                        next_steps = cur_paths.next[steps]
+                        assert len(next_steps) == 1, next_steps
+                        next_step: fsm.Node = list(next_steps)[0]
+
+                        ast_op: AstOp = next_step.data
+                        on_step(if_statement.then, ast_op)
+                        branch(if_statement.then, next_step)
+
+                        cur_block = c.construction.Block(cur_block)
+                        if_statement.otherwice = cur_block
+                    
+                    cur_block.add_line(c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
+                    break
+                    
+
+            body.add_line(c.Ret(res))
+
+        branch(body, node.op.make_fsm())
         return parse_node
 
     def generate(self, code: c.Codebase):
@@ -201,8 +244,9 @@ class Ast:
             elif op.type == 'node':
                 return node_types[op.node.struct_name()].const().ptr()
             elif op.type == 'optional':
-                assert len(op.items) == 1 and all(item.type == 'node' for item in op.items), '"optional" can only contain a single node'
-                return node_types[op.items[0].node.struct_name()].const().ptr()
+                field_items = [item for item in op.items if item.field]
+                assert len(field_items) == 1, "'optional can only contain one filed'"
+                return node_field_type(field_items[0])
             else:
                 raise Exception(f'Operation of type {op.type} is not supported')
 

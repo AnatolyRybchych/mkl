@@ -218,36 +218,6 @@ def loop(node: Node):
 
     return res
 
-def add_optional(lhs: Node, rhs: Node):
-    res = copy.deepcopy(lhs)
-    rhs = copy.deepcopy(rhs)
-
-    visited: set[int] = set([res])
-    unresolved = [res]
-
-    while len(unresolved) != 0:
-        cur = unresolved.pop()
-
-        for steps in cur.next.values():
-            for node in steps:
-                if id(node) in visited:
-                    continue
-
-                if node.match:
-                    if len(node.next) == 0:
-                        steps.remove(node)
-                        steps.add(rhs)
-                        continue
-
-                    node.next.update({k: copy.copy(beg_steps) for k, beg_steps in rhs.next.items()})
-
-                visited.add(id(node))
-                unresolved.append(node)
-
-    res.match = True
-
-    return res
-
 def from_expr(pattern: str | bytes, data) -> Node:
     def unescape(str: bytes) -> bytes:
         res = b''

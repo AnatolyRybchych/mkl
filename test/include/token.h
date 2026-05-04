@@ -11,6 +11,7 @@ typedef enum {
     TOK_OPEN_PARENTHESIS,
     TOK_CLOSE_PARENTHESIS,
     TOK_SEMICOLON,
+    TOK_COMMA,
     TOK_SPACE
 } TokenType;
 

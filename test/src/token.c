@@ -29,6 +29,8 @@ struct Token get_token(const char* beg, const char* end) {
             return token(TOK_CLOSE_PARENTHESIS, beg, beg + 1);
         case ';':
             return token(TOK_SEMICOLON, beg, beg + 1);
+        case ',':
+            return token(TOK_COMMA, beg, beg + 1);
         case ' ':
             return space_token(beg, end);
         case '\n':
@@ -97,6 +99,8 @@ const char* token_type_str(TokenType type) {
             return "CLOSE_PARENTHESIS";
         case TOK_SEMICOLON:
             return "SEMICOLON";
+        case TOK_COMMA:
+            return "COMMA";
         case TOK_SPACE:
             return "SPACE";
         default:

@@ -12,6 +12,7 @@
         <token name="OPEN_PARENTHESIS">\(</token>
         <token name="CLOSE_PARENTHESIS">\)</token>
         <token name="SEMICOLON">;</token>
+        <token name="COMMA">,</token>
         <token name="SPACE">[ \n]+</token>
     </tokenizer>
 
@@ -29,6 +30,15 @@
             </optional>
         </node>
 
+        <node name="ARGS">
+            <node name="TYPE" field="type"/>
+            <token name="NAME" field="name"/>
+            <optional field="next">
+                <token name="COMMA"/>
+                <node name="ARGS" field="next"/>
+            </optional>
+        </node>
+
         <node name="STRUCT">
             <token name="STRUCT"/>
             <token name="NAME" field="name"/>
@@ -36,6 +46,16 @@
             <node name="FIELDS" field="fields"/>
             <token name="CLOSE_CURLY"/>
             <token name="SEMICOLON"/>
+        </node>
+
+        <node name="FDECL">
+            <node name="TYPE" field="return_type"/>
+            <token name="NAME" field="name"/>
+            <token name="OPEN_PARENTHESIS"/>
+            <optional field="args">
+                <node name="ARGS" field="args"/>
+            </optional>
+            <token name="CLOSE_PARENTHESIS"/>
         </node>
     </ast>
 </layout>

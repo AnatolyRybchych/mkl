@@ -27,6 +27,21 @@ class AstOp:
         self.node: AstNode = kw.get('node', None)
         self.token: token_layout.Token = kw.get('token', None)
         self.items: list[AstOp] = kw.get('items', [])
+        self.aggregate_in: AstOp | None = None
+
+        if self.type == 'any_of':
+            for item in self.items:
+                item.aggregate_in = self
+                item.field = self.field
+        
+        if self.type == 'optional':
+            field_items = [item for item in self.get_items_reqursively() if item.field]
+            assert len(field_items) <= 1
+            if field_items:
+                self.field = field_items[0].field
+
+    def get_items_reqursively(self) -> list[AstOp]:
+        return self.items + [sub for item in self.items for sub in item.get_items_reqursively()]
 
     def make_fsm(self) -> fsm.Node:
         to_fsm = lambda x: x if type(x) is fsm.Node else x.make_fsm() if type(x) is AstOp else None
@@ -58,6 +73,8 @@ class AstOp:
                     to_combine.insert(0, fsm.combine_sequentially(to_fsm(first), to_fsm(second)))
                     
             return to_fsm(to_combine[0])
+        if self.type == 'any_of':
+            return fsm.any(*[item.make_fsm() for item in self.items])
 
         raise Exception(f'make_fsm() is not implemented for the AstOp of type "{self.type}"')
 
@@ -96,8 +113,10 @@ class Ast:
                 return AstOp('seq', syntax, items = [mkop(item) for item in syntax.items])
             elif syntax.type == 'optional':
                 return AstOp('optional', syntax, items = [mkop(item) for item in syntax.items])
+            elif syntax.type == 'any_of':
+                return AstOp('any_of', syntax, items = [mkop(item) for item in syntax.items])
             else:
-                raise Exception(f'unexpected operation "{syntax.type}": {json.dumps(syntax, indent=2)}')
+                raise Exception(f'unexpected operation "{syntax.type}": {syntax}')
 
         for name, node in syntax.nodes.items():
             self.nodes[name] = AstNode(node, None)
@@ -148,7 +167,10 @@ class Ast:
                 if ast_op.type == 'token':
                     block.add_line(res.deref()[ast_op.field].assign(c.PostInc(cur)))
                 elif ast_op.type == 'node':
-                    block.add_line(res.deref()[ast_op.field].assign(variables[f'{ast_op.node.name.lower()}_node']))
+                    value = variables[f'{ast_op.node.name.lower()}_node']
+                    if ast_op.aggregate_in and ast_op.aggregate_in.type == 'any_of':
+                        value = c.Cast(ast_node_t.const().ptr(), value)
+                    block.add_line(res.deref()[ast_op.field].assign(value))
                 else:
                     assert False, f'Unexpected node type: {node_type}'
             elif ast_op.type == 'token':
@@ -238,6 +260,10 @@ class Ast:
             node_types[node.struct_name()] = node_type
             ast_h.declare(node_type)
 
+        ast_node_struct = ast_h.struct('AstNode')
+        ast_node_t = ast_node_struct.typedef()
+        ast_h.declare(ast_node_t)
+
         def node_field_type(op: AstOp) -> c.Type:
             if op.type == 'token':
                 return ast_h.find_type('Token').const().ptr()
@@ -245,8 +271,9 @@ class Ast:
                 return node_types[op.node.struct_name()].const().ptr()
             elif op.type == 'optional':
                 field_items = [item for item in op.items if item.field]
-                assert len(field_items) == 1, "'optional can only contain one filed'"
                 return node_field_type(field_items[0])
+            elif op.type == 'any_of':
+                return ast_node_t.const().ptr()
             else:
                 raise Exception(f'Operation of type {op.type} is not supported')
 
@@ -263,10 +290,6 @@ class Ast:
         ast_node_union.add_field(ast_type, 'ast_type')
         for node in self.nodes.values():
             ast_node_union.add_field(node_types[node.struct_name()], node.field_name())
-
-        ast_node_struct = ast_h.struct('AstNode')
-        ast_node_t = ast_node_struct.typedef()
-        ast_h.declare(ast_node_t)
 
         ast_node_struct.add_field(ast_node_union, '')
 

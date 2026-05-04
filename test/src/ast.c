@@ -36,8 +36,12 @@ unsigned long get_node_size(AstType type) {
             return sizeof(struct Ast_Args);
         case AST_STRUCT:
             return sizeof(struct Ast_Struct);
-        case AST_FDECL:
-            return sizeof(struct Ast_Fdecl);
+        case AST_FUNC_PROTO:
+            return sizeof(struct Ast_Func_proto);
+        case AST_FUNC_DECL:
+            return sizeof(struct Ast_Func_decl);
+        case AST_TOPLEVEL:
+            return sizeof(struct Ast_Toplevel);
         default:
             return 0;
     }
@@ -162,10 +166,10 @@ const Ast_Struct* parse_struct(Ast* ast, ParserCtx* ctx) {
     return res;
 }
 
-const Ast_Fdecl* parse_fdecl(Ast* ast, ParserCtx* ctx) {
+const Ast_Func_proto* parse_func_proto(Ast* ast, ParserCtx* ctx) {
     const struct Ast_Type* type_node = 0;
     const struct Ast_Args* args_node = 0;
-    Ast_Fdecl* res = (Ast_Fdecl*)(ast_node(ast, AST_FDECL));
+    Ast_Func_proto* res = (Ast_Func_proto*)(ast_node(ast, AST_FUNC_PROTO));
     if (!res) {
         ctx->error = PARSERE_OUT_OF_MEMORY;
         return res;
@@ -192,6 +196,55 @@ const Ast_Fdecl* parse_fdecl(Ast* ast, ParserCtx* ctx) {
             return (void*)(0);
         }
         ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
+        return res;
+    } else {
+        return (void*)(0);
+    }
+
+    return res;
+}
+
+const Ast_Func_decl* parse_func_decl(Ast* ast, ParserCtx* ctx) {
+    const struct Ast_Func_proto* func_proto_node = 0;
+    Ast_Func_decl* res = (Ast_Func_decl*)(ast_node(ast, AST_FUNC_DECL));
+    if (!res) {
+        ctx->error = PARSERE_OUT_OF_MEMORY;
+        return res;
+    }
+    ctx->cur_node = (AstNode*)(res);
+    if (!(func_proto_node = parse_func_proto(ast, ctx))) {
+        return (void*)(0);
+    }
+    if (ctx->tokenizer.cur->type != TOK_SEMICOLON) {
+        return (void*)(0);
+    }
+    ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
+    return res;
+}
+
+const Ast_Toplevel* parse_toplevel(Ast* ast, ParserCtx* ctx) {
+    const struct Ast_Struct* struct_node = 0;
+    const struct Ast_Toplevel* toplevel_node = 0;
+    const struct Ast_Func_decl* func_decl_node = 0;
+    Ast_Toplevel* res = (Ast_Toplevel*)(ast_node(ast, AST_TOPLEVEL));
+    if (!res) {
+        ctx->error = PARSERE_OUT_OF_MEMORY;
+        return res;
+    }
+    ctx->cur_node = (AstNode*)(res);
+    if (struct_node = parse_struct(ast, ctx)) {
+        res->element = (const AstNode*)(struct_node);
+        if (!(toplevel_node = parse_toplevel(ast, ctx))) {
+            return res;
+        }
+        res->next = toplevel_node;
+        return res;
+    } else if (func_decl_node = parse_func_decl(ast, ctx)) {
+        res->element = (const AstNode*)(func_decl_node);
+        if (!(toplevel_node = parse_toplevel(ast, ctx))) {
+            return res;
+        }
+        res->next = toplevel_node;
         return res;
     } else {
         return (void*)(0);

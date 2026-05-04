@@ -25,7 +25,7 @@
             <node name="TYPE" field="type"/>
             <token name="NAME" field="name"/>
             <token name="SEMICOLON"/>
-            <optional field="next">
+            <optional>
                 <node name="FIELDS" field="next"/>
             </optional>
         </node>
@@ -33,7 +33,7 @@
         <node name="ARGS">
             <node name="TYPE" field="type"/>
             <token name="NAME" field="name"/>
-            <optional field="next">
+            <optional>
                 <token name="COMMA"/>
                 <node name="ARGS" field="next"/>
             </optional>
@@ -48,14 +48,29 @@
             <token name="SEMICOLON"/>
         </node>
 
-        <node name="FDECL">
+        <node name="FUNC_PROTO">
             <node name="TYPE" field="return_type"/>
             <token name="NAME" field="name"/>
             <token name="OPEN_PARENTHESIS"/>
-            <optional field="args">
+            <optional>
                 <node name="ARGS" field="args"/>
             </optional>
             <token name="CLOSE_PARENTHESIS"/>
+        </node>
+        
+        <node name="FUNC_DECL">
+            <node name="FUNC_PROTO"/>
+            <token name="SEMICOLON"/>
+        </node>
+
+        <node name="TOPLEVEL">
+            <any_of field="element">
+                <node name="STRUCT"/>
+                <node name="FUNC_DECL"/>
+            </any_of>
+            <optional>
+                <node name="TOPLEVEL" field="next"/>
+            </optional>
         </node>
     </ast>
 </layout>

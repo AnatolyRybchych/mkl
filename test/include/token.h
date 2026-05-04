@@ -6,13 +6,19 @@ typedef enum {
     TOK_EOF,
     TOK_NAME,
     TOK_STRUCT,
+    TOK_RETURN,
+    TOK_NUMBER,
     TOK_OPEN_CURLY,
     TOK_CLOSE_CURLY,
     TOK_OPEN_PARENTHESIS,
     TOK_CLOSE_PARENTHESIS,
     TOK_SEMICOLON,
     TOK_COMMA,
-    TOK_SPACE
+    TOK_SPACE,
+    TOK_PLUS,
+    TOK_MINUS,
+    TOK_ASTERISK,
+    TOK_SLASH
 } TokenType;
 
 typedef struct Token Token;

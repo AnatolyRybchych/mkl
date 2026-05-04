@@ -644,3 +644,48 @@ def get_linear_path(node: Node) -> LListNode:
 
         cur_node = branches.pop()
         cur = cur.add_next(cur_node)
+
+# returns a shared part of nodes tails
+# it is possible to this shared tail started from multiple nodes
+#
+# Exampple:
+# Node1 A - B - C
+#        \- D - F
+#
+# Node2 M - B - C
+#        \- D - F
+#
+# Result: {B, D}
+def get_shared_tail(*nodes: Node) -> set(Node):
+    if len(nodes) == 0:
+        return set()
+
+    if len(nodes) == 1:
+        return set(list(nodes))
+
+    node_node_generations: list[dict[int, int]] = [get_node_generations(node) for node in nodes]
+    node_reverse_generation_nodes: list[list[set(int)]] = []
+    for node_generations in node_node_generations:
+        generation_nodes: dict[int, set(int)] = {}
+        for node, generation in node_generations.items():
+            if generation not in generation_nodes:
+                generation_nodes[generation] = set()
+            generation_nodes[generation].add(node)
+
+        generations = list(reversed(sorted(node_generations.values())))
+        
+        reverse_generation_nodes: list[set(int)] = []
+        for generation in generations:
+            reverse_generation_nodes.append(generation_nodes[generation])
+
+        node_reverse_generation_nodes.append(reverse_generation_nodes)
+
+    result: set(int) | None = None
+    yangest_root_generations: int = min(len(generations) for generations in node_reverse_generation_nodes)
+    for generation in reversed(range(yangest_root_generations)):
+        node_cur_generation_nodes: list[set[int]] = [node_generations[generation] for node_generations in node_reverse_generation_nodes]
+        if all(s == node_cur_generation_nodes[0] for s in node_cur_generation_nodes):
+            nodes: dict[int, Node] = {id(node): node for node in get_all_nodes(nodes[0])}
+            return set([nodes[node] for node in node_cur_generation_nodes[0]])
+
+    return set()

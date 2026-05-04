@@ -7,6 +7,9 @@
 #include <malloc.h>
 #include <stdbool.h>
 
+#define TOK_FMT "%.*s"
+#define TOK_PRT(TOK) (int)((TOK).end - (TOK).beg), (TOK).beg
+
 void *malloc_alloc(Allocator *self, unsigned long size) {
     (void)self;
     return malloc(size);
@@ -64,7 +67,7 @@ int tokenize(size_t len, const char src[len], size_t *cnt, Token **tokens) {
 
             res = new_res;
         }
-        
+
         if (tok.type != TOK_SPACE) {
             res[cur_cnt++] = tok;
         }
@@ -117,19 +120,33 @@ int main(void) {
         return 1;
     }
 
-    const Ast_Struct *ast_struct = parse_struct(ast, &ctx);
-
-    if (!ast_struct) {
-        fprintf(stderr, "ERROR: failed to parse struct\n");
+    const Ast_Toplevel *toplevel = parse_toplevel(ast, &ctx);
+    if (!toplevel) {
+        fprintf(stderr, "ERROR: failed to parse toplevel\n");
         return 1;
     }
 
-    printf("struct %.*s\n", (int)(ast_struct->name->end - ast_struct->name->beg), ast_struct->name->beg);
-    for (const Ast_Fields *field = ast_struct->fields; field; field = field->next) {
-        printf("    %.*s %.*s.%.*s\n", 
-            (int)(field->type->name->end - field->type->name->beg), field->type->name->beg,
-            (int)(ast_struct->name->end - ast_struct->name->beg), ast_struct->name->beg,
-            (int)(field->name->end - field->name->beg), field->name->beg);
+    for (const Ast_Toplevel *toplevel_item = toplevel; toplevel_item; toplevel_item = toplevel_item->next) {
+        printf("--- toplevel item of type %d ---\n", (int)toplevel_item->element->ast_type);
+        if (toplevel_item->element->ast_type == AST_STRUCT) {
+            const Ast_Struct *struc = (const Ast_Struct*)toplevel_item->element;
+            printf("struct %.*s\n", (int)(struc->name->end - struc->name->beg), struc->name->beg);
+            for (const Ast_Fields *field = struc->fields; field; field = field->next) {
+                printf("    " TOK_FMT " " TOK_FMT "\n", TOK_PRT(*field->type->name), TOK_PRT(*field->name));
+            }
+        }
+        else if (toplevel_item->element->ast_type == AST_FUNC_DECL) {
+            const Ast_Func_decl *fdecl = (const Ast_Func_decl*)toplevel_item->element;
+            const Ast_Func_proto *proto = fdecl->proto;
+            printf(TOK_FMT " " TOK_FMT "(", TOK_PRT(*proto->return_type->name), TOK_PRT(*proto->name));
+            for (const Ast_Args *arg = proto->args; arg; arg = arg->next) {
+                printf(TOK_FMT " " TOK_FMT, TOK_PRT(*arg->type->name), TOK_PRT(*arg->name));
+                if (arg->next) {
+                    printf(", ");
+                }
+            }
+            printf(");\n");
+        }
     }
 
     ast_clean(ast);

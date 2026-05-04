@@ -178,12 +178,8 @@ class Ast:
 
         def branch(body, paths: fsm.Node):
             cycle_entries = fsm.get_cycle_roots(paths)
-
-            if len(cycle_entries) > 1:
-                body.add_comment(f'TODO: handle cyclic structures with multiple loops: {cycle_entries}')
-                return parse_node
-
             cur_paths = paths
+
             visited: set[fsm.Node] = set()
             while len(cur_paths.next) != 0:
                 next_branches = []
@@ -191,22 +187,21 @@ class Ast:
                     expected_node = list(cur_paths.next.keys())[0]
                     node_type, node = expected_node
 
-                    body.add_if(check_step(node_type, node, True),
-                            c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
-
                     next_steps: set[AstNode] = cur_paths.next[expected_node]
-                    if len(next_steps) != 1:
-                        body.add_comment('TODO: handle fancy if/switch dispatching')
-                        return parse_node
+                    assert len(next_steps) == 1
                     
                     next_step: fsm.Node = list(next_steps)[0]
                     ast_op: AstOp = next_step.data
+
+                    body.add_if(check_step(node_type, node, True),
+                            c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
+
                     on_step(body, ast_op)
 
                     if next_step in visited:
-                        body.add_comment(f'TODO: loop: {next_step.next}')
                         break
 
+                    # TODO: handle some loops without recursion
                     if next_step in cycle_entries:
                         visited.add(next_step)
                         
@@ -217,12 +212,12 @@ class Ast:
 
                     cur_block = body
                     for steps in token_branches + non_token_branches:
-                        node_type, node = steps
-                        if_statement = cur_block.add_if(check_step(node_type, node, False))
-
                         next_steps = cur_paths.next[steps]
                         assert len(next_steps) == 1, next_steps
                         next_step: fsm.Node = list(next_steps)[0]
+
+                        node_type, node = steps
+                        if_statement = cur_block.add_if(check_step(node_type, node, False))
 
                         ast_op: AstOp = next_step.data
                         on_step(if_statement.then, ast_op)
@@ -233,11 +228,10 @@ class Ast:
                     
                     cur_block.add_line(c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
                     break
-                    
 
             body.add_line(c.Ret(res))
 
-        branch(body, node.op.make_fsm())
+        branch(body, fsm.minimize(node.op.make_fsm()))
         return parse_node
 
     def generate(self, code: c.Codebase):

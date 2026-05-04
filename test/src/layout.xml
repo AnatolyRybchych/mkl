@@ -6,7 +6,9 @@
 
     <tokenizer token_prefix="TOK_">
         <token name="NAME" order="1">[a-zA-Z_][a-zA-Z0-9_]*</token>
-        <token name="STRUCT" order="0">struct</token> 
+        <token name="STRUCT" order="0">struct</token>
+        <token name="RETURN" order="0">return</token>
+        <token name="NUMBER">[0-9]+</token>
         <token name="OPEN_CURLY">{</token>
         <token name="CLOSE_CURLY">}</token>
         <token name="OPEN_PARENTHESIS">\(</token>
@@ -14,6 +16,10 @@
         <token name="SEMICOLON">;</token>
         <token name="COMMA">,</token>
         <token name="SPACE">[ \n]+</token>
+        <token name="PLUS">\+</token>
+        <token name="MINUS">\-</token>
+        <token name="ASTERISK">\*</token>
+        <token name="SLASH">/</token>
     </tokenizer>
 
     <ast>
@@ -57,16 +63,80 @@
             </optional>
             <token name="CLOSE_PARENTHESIS"/>
         </node>
-        
+
         <node name="FUNC_DECL">
-            <node name="FUNC_PROTO"/>
+            <node name="FUNC_PROTO" field="proto"/>
             <token name="SEMICOLON"/>
+        </node>
+
+        <node name="EXPR_NUM">
+            <token name="NUMBER" field="value"/>
+        </node>
+
+        <node name="EXPR_ADD">
+            <node name="EXPR" field="lhs"/>
+            <token name="PLUS"/>
+            <node name="EXPR" field="rhs"/>
+        </node>
+
+        <node name="EXPR_SUB">
+            <node name="EXPR" field="lhs"/>
+            <token name="MINUS"/>
+            <node name="EXPR" field="rhs"/>
+        </node>
+
+        <node name="EXPR_MUL">
+            <node name="EXPR" field="lhs"/>
+            <token name="ASTERISK"/>
+            <node name="EXPR" field="rhs"/>
+        </node>
+
+        <node name="EXPR_DIV">
+            <node name="EXPR" field="lhs"/>
+            <token name="SLASH"/>
+            <node name="EXPR" field="rhs"/>
+        </node>
+
+        <node name="EXPR">
+            <any_of field="expr">
+                <node name="EXPR_NUM"/>
+                <node name="EXPR_ADD"/>
+                <node name="EXPR_SUB"/>
+                <node name="EXPR_MUL"/>
+                <node name="EXPR_DIV"/>
+            </any_of>
+            <optional>
+                <node name="EXPR" field="next"/>
+            </optional>
+        </node>
+
+        <node name="CONSTR_RETURN">
+            <token name="RETURN"/>
+            <node name="EXPR" field="expr"/>
+            <token name="SEMICOLON"/>
+        </node>
+
+        <node name="CONSTR">
+            <any_of field="constr">
+                <node name="CONSTR_RETURN"/>
+            </any_of>
+            <optional>
+                <node name="CONSTR" field="next"/>
+            </optional>
+        </node>
+
+        <node name="FUNC">
+            <node name="FUNC_PROTO" field="proto"/>
+            <token name="OPEN_CURLY"/>
+            <node name="CONSTR" field="body"/>
+            <token name="CLOSE_CURLY"/>
         </node>
 
         <node name="TOPLEVEL">
             <any_of field="element">
                 <node name="STRUCT"/>
                 <node name="FUNC_DECL"/>
+                <node name="FUNC"/>
             </any_of>
             <optional>
                 <node name="TOPLEVEL" field="next"/>

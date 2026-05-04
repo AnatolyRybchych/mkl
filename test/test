@@ -2,3 +2,9 @@ struct Point {
     int x;
     int y;
 };
+
+int main(int a, int b);
+
+int main(int a, int b) {
+    return 0;
+}

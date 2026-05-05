@@ -12,6 +12,8 @@ from mklang.syntax import Syntax
 from mklang.layout import Layout
 import xml.etree.ElementTree as ET
 
+sys.setrecursionlimit(100000)
+
 layout_file_path = 'test/src/layout.xml'
 if len(sys.argv) >= 2:
     layout_file_path = sys.argv[1]

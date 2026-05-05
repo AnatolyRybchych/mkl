@@ -1,7 +1,7 @@
 import copy
 import json
 import re
-from typing import Any, Self, Generic, TypeVar
+from typing import Any, Self, Generic, TypeVar, Callable
 from mklang.utils.llist import LListNode
 
 Key = TypeVar('Key')
@@ -176,7 +176,7 @@ def from_expr_range(pattern: str | bytes, data) -> Node:
 def from_utf8(text: str | bytes, data = None) -> Node:
     if type(text) is str:
         text = bytes(text, 'utf-8')
-    
+
     assert type(text) is bytes
 
     node = Node(data)
@@ -381,7 +381,7 @@ def from_expr(pattern: str | bytes, data) -> Node:
             if expr['type'] == 'OR':
                 res.append(any(*[to_fsm(*branch) for branch in expr['or']]))
                 continue
-            
+
             if expr['type'] == 'GROUP':
                 res.append(seq(to_fsm(*expr['group'])))
                 continue
@@ -549,7 +549,7 @@ def get_node_generations(node: Node) -> dict[int, int]:
         cur_generation_steps: list[Node] = []
         for steps in node.next.values():
             for step in steps:
-                generation = add_generations(step, visited) 
+                generation = add_generations(step, visited)
                 generations += [generation + 1]
                 cur_generation_steps.append(step)
 
@@ -673,7 +673,7 @@ def get_shared_tail(*nodes: Node) -> set(Node):
             generation_nodes[generation].add(node)
 
         generations = list(reversed(sorted(node_generations.values())))
-        
+
         reverse_generation_nodes: list[set(int)] = []
         for generation in generations:
             reverse_generation_nodes.append(generation_nodes[generation])
@@ -689,3 +689,21 @@ def get_shared_tail(*nodes: Node) -> set(Node):
             return set([nodes[node] for node in node_cur_generation_nodes[0]])
 
     return set()
+
+def expand(node: Node, exapnd_node: Callable[[Node], Node]) -> Node:
+    dummy: Node = Node()
+    dummy.ref_child('real', node)
+
+    nodes: set[Node] = get_all_nodes(node)
+    locations: dict[int, list[tuple[Node, Any]]] = get_node_locations(dummy)
+
+    while nodes:
+        node: Node = nodes.pop()
+        replacement: Node = exapnd_node(node)
+
+        for parent, key in locations[id(node)]:
+            assert node in parent.next[key]
+            parent.next[key].remove(node)
+            parent.next[key].add(replacement)
+
+    return dummy.next['real'].pop()

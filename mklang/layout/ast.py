@@ -11,6 +11,8 @@ import mklang.fsm as fsm
 import mkc as c
 import copy
 
+from functools import cached_property
+
 def dbg(block, msg):
     DEBUG: bool = True
 
@@ -18,7 +20,6 @@ def dbg(block, msg):
         return
 
     block.add_comment(f'DBG: {msg}')
-
 
 class AstOp:
     def __init__(self, type: str, syntax: ast_op_syntax.AstOp, **kw):
@@ -33,7 +34,7 @@ class AstOp:
             for item in self.items:
                 item.aggregate_in = self
                 item.field = self.field
-        
+
         if self.type == 'optional':
             field_items = [item for item in self.get_items_reqursively() if item.field]
             assert len(field_items) <= 1
@@ -71,12 +72,13 @@ class AstOp:
                     to_combine.insert(0, fsm.combine_sequentially(to_fsm(first), optional_second))
                 else:
                     to_combine.insert(0, fsm.combine_sequentially(to_fsm(first), to_fsm(second)))
-                    
+
             return to_fsm(to_combine[0])
         if self.type == 'any_of':
             return fsm.any(*[item.make_fsm() for item in self.items])
 
         raise Exception(f'make_fsm() is not implemented for the AstOp of type "{self.type}"')
+
 
 class AstNode:
     def __init__(self, syntax: ast_node_syntax.AstNode, op: AstOp):
@@ -139,7 +141,7 @@ class Ast:
 
         body = parse_node.body
         ast, ctx = body['ast'], body['ctx']
-        
+
         tokenizer_ctx = ctx.deref()['tokenizer']
         beg, cur, end = tokenizer_ctx['beg'], tokenizer_ctx['cur'], tokenizer_ctx['end']
         variables = body.add_logical_block()
@@ -180,55 +182,58 @@ class Ast:
             cycle_entries = fsm.get_cycle_roots(paths)
             cur_paths = paths
 
-            visited: set[fsm.Node] = set()
-            while len(cur_paths.next) != 0:
-                next_branches = []
-                if len(cur_paths.next) == 1:
-                    expected_node = list(cur_paths.next.keys())[0]
-                    node_type, node = expected_node
+            while len(cur_paths.next) == 1:
+                visited: set[fsm.Node] = set()
 
-                    next_steps: set[AstNode] = cur_paths.next[expected_node]
-                    assert len(next_steps) == 1
-                    
-                    next_step: fsm.Node = list(next_steps)[0]
-                    ast_op: AstOp = next_step.data
+                expected_node = list(cur_paths.next.keys())[0]
+                node_type, node = expected_node
 
-                    body.add_if(check_step(node_type, node, True),
-                            c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
+                next_steps: set[AstNode] = cur_paths.next[expected_node]
+                assert len(next_steps) == 1
 
-                    on_step(body, ast_op)
+                next_step: fsm.Node = list(next_steps)[0]
+                ast_op: AstOp = next_step.data
 
-                    if next_step in visited:
-                        break
+                body.add_if(check_step(node_type, node, True),
+                        c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
 
-                    # TODO: handle some loops without recursion
-                    if next_step in cycle_entries:
-                        visited.add(next_step)
-                        
-                    cur_paths = next_step
-                else:
-                    token_branches = [branch for branch in cur_paths.next.keys() if branch[0] == 'token']
-                    non_token_branches = [branch for branch in cur_paths.next.keys() if branch[0] != 'token']
+                on_step(body, ast_op)
 
-                    cur_block = body
-                    for steps in token_branches + non_token_branches:
-                        next_steps = cur_paths.next[steps]
-                        assert len(next_steps) == 1, next_steps
-                        next_step: fsm.Node = list(next_steps)[0]
-
-                        node_type, node = steps
-                        if_statement = cur_block.add_if(check_step(node_type, node, False))
-
-                        ast_op: AstOp = next_step.data
-                        on_step(if_statement.then, ast_op)
-                        branch(if_statement.then, next_step)
-
-                        cur_block = c.construction.Block(cur_block)
-                        if_statement.otherwice = cur_block
-                    
-                    cur_block.add_line(c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
+                if next_step in visited:
                     break
 
+                # TODO: handle some loops without recursion
+                if next_step in cycle_entries:
+                    visited.add(next_step)
+
+                cur_paths = next_step
+
+            if len(cur_paths.next) == 0:
+                body.add_line(c.Ret(res))
+                return
+
+            token_branches = [branch for branch in cur_paths.next.keys() if branch[0] == 'token']
+            node_branches = [branch for branch in cur_paths.next.keys() if branch[0] == 'node']
+            other_branches = [branch for branch in cur_paths.next.keys() if branch[0] not in ['node', 'token']]
+            assert len(other_branches) == 0, f'Not implemented for {other_branches}'
+
+            cur_block = body
+            for steps in token_branches + node_branches:
+                next_steps = cur_paths.next[steps]
+                assert len(next_steps) == 1, next_steps
+                next_step: fsm.Node = list(next_steps)[0]
+
+                node_type, node = steps
+                if_statement = cur_block.add_if(check_step(node_type, node, False))
+
+                ast_op: AstOp = next_step.data
+                on_step(if_statement.then, ast_op)
+                branch(if_statement.then, next_step)
+
+                cur_block = c.construction.Block(cur_block)
+                if_statement.otherwice = cur_block
+
+            cur_block.add_line(c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
             body.add_line(c.Ret(res))
 
         branch(body, fsm.minimize(node.op.make_fsm()))
@@ -319,7 +324,7 @@ class Ast:
         ast_struct.add_field(allocator_t.ptr(), 'allocator')
         ast_struct.add_field(ast_node_t.const().ptr(), 'root')
         ast_struct.add_field(node_slot_strcut.ptr(), 'nodes')
-        
+
         def gen_ast_init(file: c.File):
             ast_init = file.func(ast_t.ptr(), 'ast_init', (allocator_t.ptr(), 'alloc'))
 
@@ -329,7 +334,7 @@ class Ast:
             res_decl = body.declare(ast_t.ptr(), 'res')
             res = res_decl.var()
             res_decl.expr = alloc.deref()['alloc'](alloc, c.SizeOf(res.deref()))
-            
+
             body.add_if(c.Not(res), c.Ret(c.Cast(ast_t.ptr(), c.Literal(0))))
             body.add_line(res.deref().assign(c.Initializer(ast_t, {
                 'allocator': alloc
@@ -365,7 +370,7 @@ class Ast:
 
         def gen_get_node_size(file: c.File):
             get_node_size = file.func(c.ulong, 'get_node_size', (ast_type, 'type'))
-            
+
             body = get_node_size.body
             type = body['type']
 
@@ -407,7 +412,3 @@ class Ast:
         for node in self.nodes.values():
             parse_node = self.generate_parse_node(ast_c, node)
             ast_h.declare(parse_node.func_decl())
-
-
-
-

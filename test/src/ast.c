@@ -207,18 +207,15 @@ const Ast_Func_proto* parse_func_proto(Ast* ast, ParserCtx* ctx) {
     ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
     if (ctx->tokenizer.cur->type == TOK_CLOSE_PARENTHESIS) {
         ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
-        return res;
     } else if (args_node = parse_args(ast, ctx)) {
         res->args = args_node;
-        if (ctx->tokenizer.cur->type != TOK_CLOSE_PARENTHESIS) {
-            return (void*)(0);
-        }
-        ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
-        return res;
     } else {
         return (void*)(0);
     }
 
+    if (ctx->tokenizer.cur->type == TOK_CLOSE_PARENTHESIS) {
+        ctx->tokenizer.cur = ctx->tokenizer.cur + 1;
+    }
     return res;
 }
 
@@ -349,11 +346,11 @@ const Ast_Expr_div* parse_expr_div(Ast* ast, ParserCtx* ctx) {
 
 const Ast_Expr* parse_expr(Ast* ast, ParserCtx* ctx) {
     const struct Ast_Expr_num* expr_num_node = 0;
-    const struct Ast_Expr* expr_node = 0;
     const struct Ast_Expr_add* expr_add_node = 0;
     const struct Ast_Expr_sub* expr_sub_node = 0;
     const struct Ast_Expr_mul* expr_mul_node = 0;
     const struct Ast_Expr_div* expr_div_node = 0;
+    const struct Ast_Expr* expr_node = 0;
     Ast_Expr* res = (Ast_Expr*)(ast_node(ast, AST_EXPR));
     if (!res) {
         ctx->error = PARSERE_OUT_OF_MEMORY;
@@ -362,43 +359,21 @@ const Ast_Expr* parse_expr(Ast* ast, ParserCtx* ctx) {
     ctx->cur_node = (AstNode*)(res);
     if (expr_num_node = parse_expr_num(ast, ctx)) {
         res->expr = (const AstNode*)(expr_num_node);
-        if (!(expr_node = parse_expr(ast, ctx))) {
-            return res;
-        }
-        res->next = expr_node;
-        return res;
     } else if (expr_add_node = parse_expr_add(ast, ctx)) {
         res->expr = (const AstNode*)(expr_add_node);
-        if (!(expr_node = parse_expr(ast, ctx))) {
-            return res;
-        }
-        res->next = expr_node;
-        return res;
     } else if (expr_sub_node = parse_expr_sub(ast, ctx)) {
         res->expr = (const AstNode*)(expr_sub_node);
-        if (!(expr_node = parse_expr(ast, ctx))) {
-            return res;
-        }
-        res->next = expr_node;
-        return res;
     } else if (expr_mul_node = parse_expr_mul(ast, ctx)) {
         res->expr = (const AstNode*)(expr_mul_node);
-        if (!(expr_node = parse_expr(ast, ctx))) {
-            return res;
-        }
-        res->next = expr_node;
-        return res;
     } else if (expr_div_node = parse_expr_div(ast, ctx)) {
         res->expr = (const AstNode*)(expr_div_node);
-        if (!(expr_node = parse_expr(ast, ctx))) {
-            return res;
-        }
-        res->next = expr_node;
-        return res;
     } else {
         return (void*)(0);
     }
 
+    if (expr_node = parse_expr(ast, ctx)) {
+        res->next = expr_node;
+    }
     return res;
 }
 
@@ -476,9 +451,9 @@ const Ast_Func* parse_func(Ast* ast, ParserCtx* ctx) {
 
 const Ast_Toplevel* parse_toplevel(Ast* ast, ParserCtx* ctx) {
     const struct Ast_Struct* struct_node = 0;
-    const struct Ast_Toplevel* toplevel_node = 0;
     const struct Ast_Func_decl* func_decl_node = 0;
     const struct Ast_Func* func_node = 0;
+    const struct Ast_Toplevel* toplevel_node = 0;
     Ast_Toplevel* res = (Ast_Toplevel*)(ast_node(ast, AST_TOPLEVEL));
     if (!res) {
         ctx->error = PARSERE_OUT_OF_MEMORY;
@@ -487,28 +462,16 @@ const Ast_Toplevel* parse_toplevel(Ast* ast, ParserCtx* ctx) {
     ctx->cur_node = (AstNode*)(res);
     if (struct_node = parse_struct(ast, ctx)) {
         res->element = (const AstNode*)(struct_node);
-        if (!(toplevel_node = parse_toplevel(ast, ctx))) {
-            return res;
-        }
-        res->next = toplevel_node;
-        return res;
     } else if (func_decl_node = parse_func_decl(ast, ctx)) {
         res->element = (const AstNode*)(func_decl_node);
-        if (!(toplevel_node = parse_toplevel(ast, ctx))) {
-            return res;
-        }
-        res->next = toplevel_node;
-        return res;
     } else if (func_node = parse_func(ast, ctx)) {
         res->element = (const AstNode*)(func_node);
-        if (!(toplevel_node = parse_toplevel(ast, ctx))) {
-            return res;
-        }
-        res->next = toplevel_node;
-        return res;
     } else {
         return (void*)(0);
     }
 
+    if (toplevel_node = parse_toplevel(ast, ctx)) {
+        res->next = toplevel_node;
+    }
     return res;
 }

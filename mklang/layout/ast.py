@@ -12,6 +12,7 @@ import mkc as c
 import copy
 
 from functools import cached_property
+from typing import Union
 
 def dbg(block, msg):
     DEBUG: bool = True
@@ -41,22 +42,24 @@ class AstOp:
             if field_items:
                 self.field = field_items[0].field
 
+    def fsm_key(self) -> tuple[str, Union[AstNode, token_layout.Token]]:
+        if self.type == 'node':
+            return self.type, self.node.name
+        elif self.type == 'token':
+            return self.type, self.token.name
+        else:
+            assert False, f'Unexpected type to use for fsm: {self.type}'
+
     def get_items_reqursively(self) -> list[AstOp]:
         return self.items + [sub for item in self.items for sub in item.get_items_reqursively()]
 
     def make_fsm(self) -> fsm.Node:
         to_fsm = lambda x: x if type(x) is fsm.Node else x.make_fsm() if type(x) is AstOp else None
 
-        if self.type == 'node':
+        if self.type in ['token', 'node']:
             res = fsm.Node(None)
             res.match = False
-            res.ref_child(('node', self.node.name), fsm.Node(self))
-            return res
-
-        if self.type == 'token':
-            res = fsm.Node(None)
-            res.match = False
-            res.ref_child(('token', self.token.name), fsm.Node(self))
+            res.ref_child(self.fsm_key(), fsm.Node(self))
             return res
 
         if self.type == 'seq':
@@ -152,7 +155,7 @@ class Ast:
 
         body.add_line(ctx.deref()['cur_node'].assign(c.Cast(ast_node_t.ptr(), res)))
 
-        def check_step(node_type: str, node: AstOp, inverse: bool) -> c.Expr:
+        def check_step(node_type: str, node: str, inverse: bool) -> c.Expr:
             if node_type == 'token':
                 check = c.NotEquals if inverse else c.Equals
                 return check(cur.deref()["type"], token_type_t[node])
@@ -178,38 +181,44 @@ class Ast:
             elif ast_op.type == 'token':
                 block.add_line(cur.assign(cur + 1))
 
-        def branch(body, paths: fsm.Node):
+        def step(body, parent_fsm: fsm.Node, fsm: fsm.Node):
+            ast_op: AstOp = fsm.data
+            node_type, node = ast_op.fsm_key()
+
+            if len(parent_fsm.next) == 1:
+                body.add_if(check_step(node_type, node, True),
+                    c.Ret(res if parent_fsm.match else c.Cast(c.void.ptr(), c.Literal(0))))
+                on_step(body, ast_op)
+                return body, None
+            else:
+                if_statement = body.add_if(check_step(node_type, node, False))
+                on_step(if_statement.then, ast_op)
+                if_statement.otherwice = c.construction.Block(body)
+                print(if_statement.otherwice)
+                return if_statement.then, if_statement.otherwice
+
+
+        def branch(body, paths: fsm.Node, mainline: bool, until: set[fsm.Node] = set()):
             cycle_entries = fsm.get_cycle_roots(paths)
             cur_paths = paths
 
             while len(cur_paths.next) == 1:
-                visited: set[fsm.Node] = set()
-
                 expected_node = list(cur_paths.next.keys())[0]
-                node_type, node = expected_node
-
                 next_steps: set[AstNode] = cur_paths.next[expected_node]
                 assert len(next_steps) == 1
 
                 next_step: fsm.Node = list(next_steps)[0]
-                ast_op: AstOp = next_step.data
 
-                body.add_if(check_step(node_type, node, True),
-                        c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
+                if next_step in until:
+                    return
 
-                on_step(body, ast_op)
-
-                if next_step in visited:
-                    break
-
-                # TODO: handle some loops without recursion
-                if next_step in cycle_entries:
-                    visited.add(next_step)
+                step(body, cur_paths, next_step)
 
                 cur_paths = next_step
 
             if len(cur_paths.next) == 0:
-                body.add_line(c.Ret(res))
+                if mainline:
+                    body.add_line(c.Ret(res))
                 return
 
             token_branches = [branch for branch in cur_paths.next.keys() if branch[0] == 'token']
@@ -217,26 +226,28 @@ class Ast:
             other_branches = [branch for branch in cur_paths.next.keys() if branch[0] not in ['node', 'token']]
             assert len(other_branches) == 0, f'Not implemented for {other_branches}'
 
+            shared_tail: set[fsm.Node] = fsm.get_shared_tail(*cur_paths.next_generation())
+
+            step_next_steps = [(steps, cur_paths.next[steps]) for steps in token_branches + node_branches]
+            step_non_parallel_steps = [(steps, list(next_steps)[0]) for steps, next_steps in step_next_steps if len(next_steps) == 1]
+            assert len(step_next_steps) == len(step_non_parallel_steps), f'Parallel branches are not supported yet'
+
             cur_block = body
-            for steps in token_branches + node_branches:
-                next_steps = cur_paths.next[steps]
-                assert len(next_steps) == 1, next_steps
-                next_step: fsm.Node = list(next_steps)[0]
+            for steps, next_step in step_non_parallel_steps:
+                if next_step in until:
+                    continue
 
-                node_type, node = steps
-                if_statement = cur_block.add_if(check_step(node_type, node, False))
-
-                ast_op: AstOp = next_step.data
-                on_step(if_statement.then, ast_op)
-                branch(if_statement.then, next_step)
-
-                cur_block = c.construction.Block(cur_block)
-                if_statement.otherwice = cur_block
+                if_match, no_match = step(cur_block, cur_paths, next_step)
+                branch(if_match, next_step, False, until.union(shared_tail))
+                cur_block = no_match
 
             cur_block.add_line(c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
-            body.add_line(c.Ret(res))
 
-        branch(body, fsm.minimize(node.op.make_fsm()))
+            for node in shared_tail:
+                step(body, cur_paths, node)
+                branch(body, node, mainline, until)
+
+        branch(body, fsm.minimize(node.op.make_fsm()), True)
         return parse_node
 
     def generate(self, code: c.Codebase):

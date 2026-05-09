@@ -1,7 +1,24 @@
 
 from mklang.utils.llist import LListNode
+from typing import Any
 
 import copy
+
+def build_dependency_tree(*direct_deps: tuple[Any, set[Any]]) -> dict[Any, set[Any]]:
+    res: dict[Any, set[Any]] = {}
+    for k, deps in direct_deps:
+        for item in [*deps, k]:
+            if item not in res:
+                res[item] = set()
+
+        res[k].update(deps)
+
+    for k in res:
+        for deps in res.values():
+            if k in deps:
+                deps.update(res[k])
+
+    return res
 
 # returns None if there is a cycle
 def depth(tree: dict) -> int | None:
@@ -43,7 +60,7 @@ def is_cyclic(tree: dict) -> bool:
         for v in tree.values():
             if v in visited:
                 return True
-            
+
             visited.add(v)
             if get_is_cyclic(tree, visited):
                 return True
@@ -51,4 +68,3 @@ def is_cyclic(tree: dict) -> bool:
         return False
 
     return get_is_cyclic(tree, set())
-

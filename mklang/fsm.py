@@ -689,21 +689,3 @@ def get_shared_tail(*nodes: Node) -> set(Node):
             return set([nodes[node] for node in node_cur_generation_nodes[0]])
 
     return set()
-
-def expand(node: Node, exapnd_node: Callable[[Node], Node]) -> Node:
-    dummy: Node = Node()
-    dummy.ref_child('real', node)
-
-    nodes: set[Node] = get_all_nodes(node)
-    locations: dict[int, list[tuple[Node, Any]]] = get_node_locations(dummy)
-
-    while nodes:
-        node: Node = nodes.pop()
-        replacement: Node = exapnd_node(node)
-
-        for parent, key in locations[id(node)]:
-            assert node in parent.next[key]
-            parent.next[key].remove(node)
-            parent.next[key].add(replacement)
-
-    return dummy.next['real'].pop()

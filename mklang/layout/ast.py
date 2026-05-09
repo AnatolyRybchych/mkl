@@ -12,7 +12,7 @@ import mkc as c
 import copy
 
 from functools import cached_property
-from typing import Union
+from typing import Union, Generator
 
 def dbg(block, msg):
     DEBUG: bool = True
@@ -21,6 +21,30 @@ def dbg(block, msg):
         return
 
     block.add_comment(f'DBG: {msg}')
+
+
+def get_direct_fsm_deps(fsm_node: fsm.Node) -> Generator[tuple[str, str]]:
+    return (node.data.fsm_key() for node in fsm.get_all_nodes(fsm_node) if node.data)
+
+
+def get_direct_fsm_node_deps(fsm_node: fsm.Node) -> Generator[str]:
+    return (node for t, node in get_direct_fsm_deps(fsm_node) if t == 'node')
+
+def group_steps_by_node(steps: dict[Any, set[fsm.Node]]) -> dict[int, set[Any]]:
+    step_tokens: dict[int, set(tuple[str, str])] = {}
+
+    for node in nodes:
+        node = list(nodes)[0]
+
+        for next_step, nodes in non_overlapping_steps.items():
+            node = list(nodes)[0]
+            steps[id(node)] = node
+            if id(node) not in step_tokens:
+                step_tokens[id(node)] = set()
+
+            step_tokens[id(node)].add(next_step)
+
+    return step_tokens
 
 class AstOp:
     def __init__(self, type: str, syntax: ast_op_syntax.AstOp, **kw):
@@ -57,7 +81,7 @@ class AstOp:
         to_fsm = lambda x: x if type(x) is fsm.Node else x.make_fsm() if type(x) is AstOp else None
 
         if self.type in ['token', 'node']:
-            res = fsm.Node(None)
+            res = fsm.Node(self)
             res.match = False
             res.ref_child(self.fsm_key(), fsm.Node(self))
             return res
@@ -155,7 +179,38 @@ class Ast:
 
         body.add_line(ctx.deref()['cur_node'].assign(c.Cast(ast_node_t.ptr(), res)))
 
-        def check_step(node_type: str, node: str, inverse: bool) -> c.Expr:
+        fsms: dict[str, fsm.Node] = {node: fsm.minimize(self.nodes[node].op.make_fsm()) for node in self.nodes}
+        minimal_first_steps: dict[str, tuple[str, str]] = {}
+
+        def define_minimal_first_step(node: str, visisted: set[str] = set()):
+            nonlocal minimal_first_steps
+
+            if node in minimal_first_steps:
+                return
+
+            if node in visisted:
+                minimal_first_steps[node] = fsms[node].data.fsm_key()
+                return
+            visisted.add(node)
+
+            if fsms[node].data.type == 'token':
+                minimal_first_steps[node] = fsms[node].data.fsm_key()
+                return
+
+            if fsms[node].data.type == 'node':
+                define_minimal_first_step(fsms[node].data.node.name, visisted)
+                minimal_first_steps[node] = minimal_first_steps[fsms[node].data.node.name]
+                return
+
+            assert False, f'Unexpected node format: {node}'
+
+        for ast_node in fsms:
+            define_minimal_first_step(ast_node)
+
+        looped_nodes: [str, tuple[str, str]] = {n: loop for n, loop in minimal_first_steps.items() if loop[0] == 'node'}
+        assert len(looped_nodes) == 0, f'Infinite loops: {list(looped_nodes.keys())} are upsed on {list(set(looped_nodes.values()))}'
+
+        def check_step(node_type: str, node: str, ctx, inverse: bool = False) -> c.Expr:
             if node_type == 'token':
                 check = c.NotEquals if inverse else c.Equals
                 return check(cur.deref()["type"], token_type_t[node])
@@ -183,20 +238,33 @@ class Ast:
 
         def step(body, parent_fsm: fsm.Node, fsm: fsm.Node):
             ast_op: AstOp = fsm.data
+            assert ast_op is not None, f'Unexpected fsm node format: {parent_fsm.data.fsm_key()} -> N/A -> {list(fsm.next.keys())}'
             node_type, node = ast_op.fsm_key()
 
+            cur_parser_ctx = ctx
+            if node_type == 'node':
+                tmp_ctx = variables['tmp_ctx']
+                if not tmp_ctx:
+                    tmp_ctx = variables.declare(parser_ctx_t, 'tmp_ctx').var()
+
+                cur_parser_ctx = c.Fn('set_ctx')(tmp_ctx.ref(), ctx)
+
             if len(parent_fsm.next) == 1:
-                body.add_if(check_step(node_type, node, True),
+                body.add_if(check_step(node_type, node, cur_parser_ctx, True),
                     c.Ret(res if parent_fsm.match else c.Cast(c.void.ptr(), c.Literal(0))))
+                if cur_parser_ctx is not ctx:
+                    body.add_line(c.Fn('set_ctx')(ctx, tmp_ctx.ref()))
+
                 on_step(body, ast_op)
                 return body, None
             else:
-                if_statement = body.add_if(check_step(node_type, node, False))
+                if_statement = body.add_if(check_step(node_type, node, cur_parser_ctx, False))
+                if cur_parser_ctx is not ctx:
+                    if_statement.then.add_line(c.Fn('set_ctx')(ctx, tmp_ctx.ref()))
+
                 on_step(if_statement.then, ast_op)
                 if_statement.otherwice = c.construction.Block(body)
-                print(if_statement.otherwice)
                 return if_statement.then, if_statement.otherwice
-
 
         def branch(body, paths: fsm.Node, mainline: bool, until: set[fsm.Node] = set()):
             cycle_entries = fsm.get_cycle_roots(paths)
@@ -228,26 +296,66 @@ class Ast:
 
             shared_tail: set[fsm.Node] = fsm.get_shared_tail(*cur_paths.next_generation())
 
-            step_next_steps = [(steps, cur_paths.next[steps]) for steps in token_branches + node_branches]
-            step_non_parallel_steps = [(steps, list(next_steps)[0]) for steps, next_steps in step_next_steps if len(next_steps) == 1]
-            assert len(step_next_steps) == len(step_non_parallel_steps), f'Parallel branches are not supported yet'
+            next_steps = [cur_paths.next[steps] for steps in token_branches + node_branches]
+            non_parallel_steps = [list(next_steps)[0] for next_steps in next_steps if len(next_steps) == 1]
+            non_parallel_steps = list(filter(lambda s: s not in until, non_parallel_steps))
+            assert len(next_steps) == len(non_parallel_steps), f'Parallel branches are not supported yet'
+
+            get_minimal_step = lambda s: minimal_first_steps[s.data.node.name][1] if s.data.type == 'node' else s.data.fsm_key()[1]
+            minimal_steps = [get_minimal_step(next_step) for next_step in non_parallel_steps]
+            overlapping_steps: dict[str, set(fsm.Node)] = {}
+            non_overlapping_steps: dict[str, set(fsm.Node)] = {}
+
+            for i, next_step in enumerate(non_parallel_steps):
+                minimal_next_step: tuple[str, str] = minimal_steps[i]
+                if minimal_next_step in overlapping_steps:
+                    overlapping_steps[minimal_next_step].add(next_step)
+                elif minimal_next_step in non_overlapping_steps:
+                    overlapping_steps[minimal_next_step] = non_overlapping_steps.pop(minimal_next_step).union(set([next_step]))
+                else:
+                    non_overlapping_steps[minimal_next_step] = set([next_step])
+
+            def dispatch_step(block, parent_fsm: fsm.Node, next_steps: set[fsm.Node]):
+                if len(next_steps) == 1:
+                    next_step = list(next_steps)[0]
+
+                    if_match, no_match = step(block, parent_fsm, next_step)
+                    branch(if_match, next_step, False, until.union(shared_tail))
+                    no_match.add_line(c.Ret(res if parent_fsm.match else c.Cast(c.void.ptr(), c.Literal(0))))
+                else:
+                    for next_step in next_steps:
+                        if_match, no_match = step(block, cur_paths, next_step)
+                        branch(if_match, next_step, False, until.union(shared_tail))
+                        block = no_match
+                    block.add_line(c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
 
             cur_block = body
-            for steps, next_step in step_non_parallel_steps:
-                if next_step in until:
-                    continue
+            if len(non_overlapping_steps) + len(overlapping_steps) > 2:
+                switch = cur_block.add_switch(cur.deref()['type'])
+                for token, nodes in {**non_overlapping_steps, **overlapping_steps}.items():
+                    case_body = c.construction.Block(cur_block)
+                    case_body.logical = True
 
-                if_match, no_match = step(cur_block, cur_paths, next_step)
-                branch(if_match, next_step, False, until.union(shared_tail))
-                cur_block = no_match
+                    dispatch_step(case_body, cur_paths, nodes)
+                    switch.add_case(token_type_t[token], case_body)
 
-            cur_block.add_line(c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
+                switch.set_default(c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
+            else:
+                for token, nodes in {**non_overlapping_steps, **overlapping_steps}.items():
+                    if_statement = cur_block.add_if(check_step('token', token, ctx, False))
+
+                    dispatch_step(if_statement.then, cur_paths, nodes)
+
+                    if_statement.otherwice = c.construction.Block(cur_block)
+                    cur_block = if_statement.otherwice
+
+                if_statement.otherwice.add_line(c.Ret(res if cur_paths.match else c.Cast(c.void.ptr(), c.Literal(0))))
 
             for node in shared_tail:
                 step(body, cur_paths, node)
                 branch(body, node, mainline, until)
 
-        branch(body, fsm.minimize(node.op.make_fsm()), True)
+        branch(body, fsms[node.name], True)
         return parse_node
 
     def generate(self, code: c.Codebase):
@@ -394,6 +502,14 @@ class Ast:
 
         ast_c.declare(gen_get_node_size(ast_c).func_decl())
 
+        def gen_set_ctx(file: c.File):
+            set_ctx = file.func(parser_ctx.ptr(), 'set_ctx', (parser_ctx.ptr(), 'dst'), (parser_ctx.ptr(), 'src'))
+            body = set_ctx.body
+            dst, src = body['dst'], body['src']
+            body.add_line(dst.deref().assign(src.deref()))
+            body.add_line(c.Ret(dst))
+            return set_ctx
+
         def gen_ast_node(file: c.File):
             ast_node = file.func(ast_node_t.ptr(), 'ast_node', (ast_t.ptr(), 'ast'), (ast_type, 'type'))
 
@@ -419,6 +535,7 @@ class Ast:
             return ast_node
 
         ast_c.declare(gen_ast_node(ast_c).func_decl())
+        ast_c.declare(gen_set_ctx(ast_c).func_decl())
 
         for node in self.nodes.values():
             parse_node = self.generate_parse_node(ast_c, node)

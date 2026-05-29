@@ -69,30 +69,35 @@
             <token name="SEMICOLON"/>
         </node>
 
+
         <node name="EXPR_NUM">
             <token name="NUMBER" field="value"/>
         </node>
 
+        <node name="EXPR_BASE">
+            <node name="EXPR_NUM" field="value" />
+        </node>
+
         <node name="EXPR_ADD">
-            <node name="EXPR" field="lhs"/>
+            <node name="EXPR_BASE" field="lhs"/>
             <token name="PLUS"/>
             <node name="EXPR" field="rhs"/>
         </node>
 
         <node name="EXPR_SUB">
-            <node name="EXPR" field="lhs"/>
+            <node name="EXPR_BASE" field="lhs"/>
             <token name="MINUS"/>
             <node name="EXPR" field="rhs"/>
         </node>
 
         <node name="EXPR_MUL">
-            <node name="EXPR" field="lhs"/>
+            <node name="EXPR_BASE" field="lhs"/>
             <token name="ASTERISK"/>
             <node name="EXPR" field="rhs"/>
         </node>
 
         <node name="EXPR_DIV">
-            <node name="EXPR" field="lhs"/>
+            <node name="EXPR_BASE" field="lhs"/>
             <token name="SLASH"/>
             <node name="EXPR" field="rhs"/>
         </node>

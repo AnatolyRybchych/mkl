@@ -10,6 +10,7 @@ typedef enum {
     AST_FUNC_PROTO,
     AST_FUNC_DECL,
     AST_EXPR_NUM,
+    AST_EXPR_BASE,
     AST_EXPR_ADD,
     AST_EXPR_SUB,
     AST_EXPR_MUL,
@@ -34,6 +35,7 @@ typedef struct Ast_Struct Ast_Struct;
 typedef struct Ast_Func_proto Ast_Func_proto;
 typedef struct Ast_Func_decl Ast_Func_decl;
 typedef struct Ast_Expr_num Ast_Expr_num;
+typedef struct Ast_Expr_base Ast_Expr_base;
 typedef struct Ast_Expr_add Ast_Expr_add;
 typedef struct Ast_Expr_sub Ast_Expr_sub;
 typedef struct Ast_Expr_mul Ast_Expr_mul;
@@ -89,27 +91,32 @@ struct Ast_Expr_num {
     const struct Token* value;
 };
 
+struct Ast_Expr_base {
+    AstType ast_type;
+    const Ast_Expr_num* value;
+};
+
 struct Ast_Expr_add {
     AstType ast_type;
-    const Ast_Expr* lhs;
+    const Ast_Expr_base* lhs;
     const Ast_Expr* rhs;
 };
 
 struct Ast_Expr_sub {
     AstType ast_type;
-    const Ast_Expr* lhs;
+    const Ast_Expr_base* lhs;
     const Ast_Expr* rhs;
 };
 
 struct Ast_Expr_mul {
     AstType ast_type;
-    const Ast_Expr* lhs;
+    const Ast_Expr_base* lhs;
     const Ast_Expr* rhs;
 };
 
 struct Ast_Expr_div {
     AstType ast_type;
-    const Ast_Expr* lhs;
+    const Ast_Expr_base* lhs;
     const Ast_Expr* rhs;
 };
 
@@ -152,6 +159,7 @@ struct AstNode {
         Ast_Func_proto node_func_proto;
         Ast_Func_decl node_func_decl;
         Ast_Expr_num node_expr_num;
+        Ast_Expr_base node_expr_base;
         Ast_Expr_add node_expr_add;
         Ast_Expr_sub node_expr_sub;
         Ast_Expr_mul node_expr_mul;
@@ -199,6 +207,7 @@ const Ast_Struct* parse_struct(Ast* ast, ParserCtx* ctx);
 const Ast_Func_proto* parse_func_proto(Ast* ast, ParserCtx* ctx);
 const Ast_Func_decl* parse_func_decl(Ast* ast, ParserCtx* ctx);
 const Ast_Expr_num* parse_expr_num(Ast* ast, ParserCtx* ctx);
+const Ast_Expr_base* parse_expr_base(Ast* ast, ParserCtx* ctx);
 const Ast_Expr_add* parse_expr_add(Ast* ast, ParserCtx* ctx);
 const Ast_Expr_sub* parse_expr_sub(Ast* ast, ParserCtx* ctx);
 const Ast_Expr_mul* parse_expr_mul(Ast* ast, ParserCtx* ctx);

@@ -153,6 +153,30 @@ class Ast:
         for name, node in syntax.nodes.items():
             self.nodes[name].op = mkop(node.op)
 
+        self.fsms: dict[str, fsm.Node] = {node: fsm.minimize(self.nodes[node].op.make_fsm()) for node in self.nodes}
+
+        non_consuming_loop_nodes = {node: loops for node, loops in self.non_consuming_loops().items() if loops}
+
+        assert len(non_consuming_loop_nodes) == 0, f'{json.dumps(non_consuming_loop_nodes, indent=2)}'
+
+    def non_consuming_loops(self) -> dict[str, list[list[str]]]:
+        def step(node: str, visisted: set[str] = set()) -> list[list[str]]:
+            if node in visisted:
+                return [[node]]
+
+            res = []
+            for ng_node in self.fsms[node].next_generation():
+                ng_node_type, ng_node_label = ng_node.data.fsm_key()
+                if ng_node_type == 'token':
+                    continue
+
+                for loop in step(ng_node_label, visisted.union([node])):
+                    res.append([node] + loop)
+
+            return res
+
+        return {node: step(node) for node in self.fsms}
+
     def generate_parse_node(self, ast_c: c.File, node: AstNode) -> c.Func:
         cur_node_t = ast_c.find_type(node.struct_name()).typedef()
         token_t = ast_c.find_type('Token')
@@ -179,7 +203,6 @@ class Ast:
 
         body.add_line(ctx.deref()['cur_node'].assign(c.Cast(ast_node_t.ptr(), res)))
 
-        fsms: dict[str, fsm.Node] = {node: fsm.minimize(self.nodes[node].op.make_fsm()) for node in self.nodes}
         minimal_first_steps: dict[str, tuple[str, str]] = {}
 
         def define_minimal_first_step(node: str, visisted: set[str] = set()):
@@ -193,18 +216,18 @@ class Ast:
                 return
             visisted.add(node)
 
-            if fsms[node].data.type == 'token':
-                minimal_first_steps[node] = fsms[node].data.fsm_key()
+            if self.fsms[node].data.type == 'token':
+                minimal_first_steps[node] = self.fsms[node].data.fsm_key()
                 return
 
-            if fsms[node].data.type == 'node':
-                define_minimal_first_step(fsms[node].data.node.name, visisted)
-                minimal_first_steps[node] = minimal_first_steps[fsms[node].data.node.name]
+            if self.fsms[node].data.type == 'node':
+                define_minimal_first_step(self.fsms[node].data.node.name, visisted)
+                minimal_first_steps[node] = minimal_first_steps[self.fsms[node].data.node.name]
                 return
 
             assert False, f'Unexpected node format: {node}'
 
-        for ast_node in fsms:
+        for ast_node in self.fsms:
             define_minimal_first_step(ast_node)
 
         looped_nodes: [str, tuple[str, str]] = {n: loop for n, loop in minimal_first_steps.items() if loop[0] == 'node'}
@@ -355,7 +378,7 @@ class Ast:
                 step(body, cur_paths, node)
                 branch(body, node, mainline, until)
 
-        branch(body, fsms[node.name], True)
+        branch(body, self.fsms[node.name], True)
         return parse_node
 
     def generate(self, code: c.Codebase):

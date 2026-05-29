@@ -43,6 +43,8 @@ unsigned long get_node_size(AstType type) {
             return sizeof(struct Ast_Func_decl);
         case AST_EXPR_NUM:
             return sizeof(struct Ast_Expr_num);
+        case AST_EXPR_BASE:
+            return sizeof(struct Ast_Expr_base);
         case AST_EXPR_ADD:
             return sizeof(struct Ast_Expr_add);
         case AST_EXPR_SUB:
@@ -228,7 +230,7 @@ const Ast_Func_proto* parse_func_proto(Ast* ast, ParserCtx* ctx) {
             return (void*)(0);
         }
     } else if (ctx->tokenizer.cur->type == TOK_NAME) {
-        if (args_node = parse_args(ast, set_ctx(&tmp_ctx, ctx))) {
+        if ((args_node = parse_args(ast, set_ctx(&tmp_ctx, ctx)))) {
             set_ctx(ctx, &tmp_ctx);
             res->args = args_node;
         } else {
@@ -279,8 +281,26 @@ const Ast_Expr_num* parse_expr_num(Ast* ast, ParserCtx* ctx) {
     return res;
 }
 
+const Ast_Expr_base* parse_expr_base(Ast* ast, ParserCtx* ctx) {
+    ParserCtx tmp_ctx;
+    const struct Ast_Expr_num* expr_num_node = 0;
+    Ast_Expr_base* res = (Ast_Expr_base*)(ast_node(ast, AST_EXPR_BASE));
+    if (!res) {
+        ctx->error = PARSERE_OUT_OF_MEMORY;
+        return res;
+    }
+    ctx->cur_node = (AstNode*)(res);
+    if (!(expr_num_node = parse_expr_num(ast, set_ctx(&tmp_ctx, ctx)))) {
+        return (void*)(0);
+    }
+    set_ctx(ctx, &tmp_ctx);
+    res->value = expr_num_node;
+    return res;
+}
+
 const Ast_Expr_add* parse_expr_add(Ast* ast, ParserCtx* ctx) {
     ParserCtx tmp_ctx;
+    const struct Ast_Expr_base* expr_base_node = 0;
     const struct Ast_Expr* expr_node = 0;
     Ast_Expr_add* res = (Ast_Expr_add*)(ast_node(ast, AST_EXPR_ADD));
     if (!res) {
@@ -288,11 +308,11 @@ const Ast_Expr_add* parse_expr_add(Ast* ast, ParserCtx* ctx) {
         return res;
     }
     ctx->cur_node = (AstNode*)(res);
-    if (!(expr_node = parse_expr(ast, set_ctx(&tmp_ctx, ctx)))) {
+    if (!(expr_base_node = parse_expr_base(ast, set_ctx(&tmp_ctx, ctx)))) {
         return (void*)(0);
     }
     set_ctx(ctx, &tmp_ctx);
-    res->lhs = expr_node;
+    res->lhs = expr_base_node;
     if (ctx->tokenizer.cur->type != TOK_PLUS) {
         return (void*)(0);
     }
@@ -307,6 +327,7 @@ const Ast_Expr_add* parse_expr_add(Ast* ast, ParserCtx* ctx) {
 
 const Ast_Expr_sub* parse_expr_sub(Ast* ast, ParserCtx* ctx) {
     ParserCtx tmp_ctx;
+    const struct Ast_Expr_base* expr_base_node = 0;
     const struct Ast_Expr* expr_node = 0;
     Ast_Expr_sub* res = (Ast_Expr_sub*)(ast_node(ast, AST_EXPR_SUB));
     if (!res) {
@@ -314,11 +335,11 @@ const Ast_Expr_sub* parse_expr_sub(Ast* ast, ParserCtx* ctx) {
         return res;
     }
     ctx->cur_node = (AstNode*)(res);
-    if (!(expr_node = parse_expr(ast, set_ctx(&tmp_ctx, ctx)))) {
+    if (!(expr_base_node = parse_expr_base(ast, set_ctx(&tmp_ctx, ctx)))) {
         return (void*)(0);
     }
     set_ctx(ctx, &tmp_ctx);
-    res->lhs = expr_node;
+    res->lhs = expr_base_node;
     if (ctx->tokenizer.cur->type != TOK_MINUS) {
         return (void*)(0);
     }
@@ -333,6 +354,7 @@ const Ast_Expr_sub* parse_expr_sub(Ast* ast, ParserCtx* ctx) {
 
 const Ast_Expr_mul* parse_expr_mul(Ast* ast, ParserCtx* ctx) {
     ParserCtx tmp_ctx;
+    const struct Ast_Expr_base* expr_base_node = 0;
     const struct Ast_Expr* expr_node = 0;
     Ast_Expr_mul* res = (Ast_Expr_mul*)(ast_node(ast, AST_EXPR_MUL));
     if (!res) {
@@ -340,11 +362,11 @@ const Ast_Expr_mul* parse_expr_mul(Ast* ast, ParserCtx* ctx) {
         return res;
     }
     ctx->cur_node = (AstNode*)(res);
-    if (!(expr_node = parse_expr(ast, set_ctx(&tmp_ctx, ctx)))) {
+    if (!(expr_base_node = parse_expr_base(ast, set_ctx(&tmp_ctx, ctx)))) {
         return (void*)(0);
     }
     set_ctx(ctx, &tmp_ctx);
-    res->lhs = expr_node;
+    res->lhs = expr_base_node;
     if (ctx->tokenizer.cur->type != TOK_ASTERISK) {
         return (void*)(0);
     }
@@ -359,6 +381,7 @@ const Ast_Expr_mul* parse_expr_mul(Ast* ast, ParserCtx* ctx) {
 
 const Ast_Expr_div* parse_expr_div(Ast* ast, ParserCtx* ctx) {
     ParserCtx tmp_ctx;
+    const struct Ast_Expr_base* expr_base_node = 0;
     const struct Ast_Expr* expr_node = 0;
     Ast_Expr_div* res = (Ast_Expr_div*)(ast_node(ast, AST_EXPR_DIV));
     if (!res) {
@@ -366,11 +389,11 @@ const Ast_Expr_div* parse_expr_div(Ast* ast, ParserCtx* ctx) {
         return res;
     }
     ctx->cur_node = (AstNode*)(res);
-    if (!(expr_node = parse_expr(ast, set_ctx(&tmp_ctx, ctx)))) {
+    if (!(expr_base_node = parse_expr_base(ast, set_ctx(&tmp_ctx, ctx)))) {
         return (void*)(0);
     }
     set_ctx(ctx, &tmp_ctx);
-    res->lhs = expr_node;
+    res->lhs = expr_base_node;
     if (ctx->tokenizer.cur->type != TOK_SLASH) {
         return (void*)(0);
     }
@@ -385,10 +408,10 @@ const Ast_Expr_div* parse_expr_div(Ast* ast, ParserCtx* ctx) {
 
 const Ast_Expr* parse_expr(Ast* ast, ParserCtx* ctx) {
     ParserCtx tmp_ctx;
-    const struct Ast_Expr_num* expr_num_node = 0;
-    const struct Ast_Expr_add* expr_add_node = 0;
-    const struct Ast_Expr_sub* expr_sub_node = 0;
     const struct Ast_Expr_div* expr_div_node = 0;
+    const struct Ast_Expr_num* expr_num_node = 0;
+    const struct Ast_Expr_sub* expr_sub_node = 0;
+    const struct Ast_Expr_add* expr_add_node = 0;
     const struct Ast_Expr_mul* expr_mul_node = 0;
     const struct Ast_Expr* expr_node = 0;
     Ast_Expr* res = (Ast_Expr*)(ast_node(ast, AST_EXPR));
@@ -398,23 +421,23 @@ const Ast_Expr* parse_expr(Ast* ast, ParserCtx* ctx) {
     }
     ctx->cur_node = (AstNode*)(res);
     if (ctx->tokenizer.cur->type == TOK_NUMBER) {
-        if (expr_num_node = parse_expr_num(ast, set_ctx(&tmp_ctx, ctx))) {
-            set_ctx(ctx, &tmp_ctx);
-            res->expr = (const AstNode*)(expr_num_node);
-        } else if (expr_add_node =
-                       parse_expr_add(ast, set_ctx(&tmp_ctx, ctx))) {
-            set_ctx(ctx, &tmp_ctx);
-            res->expr = (const AstNode*)(expr_add_node);
-        } else if (expr_sub_node =
-                       parse_expr_sub(ast, set_ctx(&tmp_ctx, ctx))) {
-            set_ctx(ctx, &tmp_ctx);
-            res->expr = (const AstNode*)(expr_sub_node);
-        } else if (expr_div_node =
-                       parse_expr_div(ast, set_ctx(&tmp_ctx, ctx))) {
+        if ((expr_div_node = parse_expr_div(ast, set_ctx(&tmp_ctx, ctx)))) {
             set_ctx(ctx, &tmp_ctx);
             res->expr = (const AstNode*)(expr_div_node);
-        } else if (expr_mul_node =
-                       parse_expr_mul(ast, set_ctx(&tmp_ctx, ctx))) {
+        } else if ((expr_num_node =
+                        parse_expr_num(ast, set_ctx(&tmp_ctx, ctx)))) {
+            set_ctx(ctx, &tmp_ctx);
+            res->expr = (const AstNode*)(expr_num_node);
+        } else if ((expr_sub_node =
+                        parse_expr_sub(ast, set_ctx(&tmp_ctx, ctx)))) {
+            set_ctx(ctx, &tmp_ctx);
+            res->expr = (const AstNode*)(expr_sub_node);
+        } else if ((expr_add_node =
+                        parse_expr_add(ast, set_ctx(&tmp_ctx, ctx)))) {
+            set_ctx(ctx, &tmp_ctx);
+            res->expr = (const AstNode*)(expr_add_node);
+        } else if ((expr_mul_node =
+                        parse_expr_mul(ast, set_ctx(&tmp_ctx, ctx)))) {
             set_ctx(ctx, &tmp_ctx);
             res->expr = (const AstNode*)(expr_mul_node);
         } else {
@@ -424,7 +447,7 @@ const Ast_Expr* parse_expr(Ast* ast, ParserCtx* ctx) {
     } else {
         return (void*)(0);
     }
-    if (expr_node = parse_expr(ast, set_ctx(&tmp_ctx, ctx))) {
+    if ((expr_node = parse_expr(ast, set_ctx(&tmp_ctx, ctx)))) {
         set_ctx(ctx, &tmp_ctx);
         res->next = expr_node;
     }
@@ -515,8 +538,8 @@ const Ast_Func* parse_func(Ast* ast, ParserCtx* ctx) {
 const Ast_Toplevel* parse_toplevel(Ast* ast, ParserCtx* ctx) {
     ParserCtx tmp_ctx;
     const struct Ast_Struct* struct_node = 0;
-    const struct Ast_Func* func_node = 0;
     const struct Ast_Func_decl* func_decl_node = 0;
+    const struct Ast_Func* func_node = 0;
     const struct Ast_Toplevel* toplevel_node = 0;
     Ast_Toplevel* res = (Ast_Toplevel*)(ast_node(ast, AST_TOPLEVEL));
     if (!res) {
@@ -525,20 +548,19 @@ const Ast_Toplevel* parse_toplevel(Ast* ast, ParserCtx* ctx) {
     }
     ctx->cur_node = (AstNode*)(res);
     if (ctx->tokenizer.cur->type == TOK_STRUCT) {
-        if (struct_node = parse_struct(ast, set_ctx(&tmp_ctx, ctx))) {
+        if ((struct_node = parse_struct(ast, set_ctx(&tmp_ctx, ctx)))) {
             set_ctx(ctx, &tmp_ctx);
             res->element = (const AstNode*)(struct_node);
         } else {
             return (void*)(0);
         }
     } else if (ctx->tokenizer.cur->type == TOK_NAME) {
-        if (func_node = parse_func(ast, set_ctx(&tmp_ctx, ctx))) {
-            set_ctx(ctx, &tmp_ctx);
-            res->element = (const AstNode*)(func_node);
-        } else if (func_decl_node =
-                       parse_func_decl(ast, set_ctx(&tmp_ctx, ctx))) {
+        if ((func_decl_node = parse_func_decl(ast, set_ctx(&tmp_ctx, ctx)))) {
             set_ctx(ctx, &tmp_ctx);
             res->element = (const AstNode*)(func_decl_node);
+        } else if ((func_node = parse_func(ast, set_ctx(&tmp_ctx, ctx)))) {
+            set_ctx(ctx, &tmp_ctx);
+            res->element = (const AstNode*)(func_node);
         } else {
             return (void*)(0);
         }
@@ -547,7 +569,7 @@ const Ast_Toplevel* parse_toplevel(Ast* ast, ParserCtx* ctx) {
         return (void*)(0);
     }
 
-    if (toplevel_node = parse_toplevel(ast, set_ctx(&tmp_ctx, ctx))) {
+    if ((toplevel_node = parse_toplevel(ast, set_ctx(&tmp_ctx, ctx)))) {
         set_ctx(ctx, &tmp_ctx);
         res->next = toplevel_node;
     }
